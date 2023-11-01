@@ -1,0 +1,3 @@
+[submodule "s3k"]
+	path = s3k
+	url = git@gits-15.sys.kth.se:DD2497/s3k.git
