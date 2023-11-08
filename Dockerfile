@@ -12,19 +12,17 @@ WORKDIR /s3k
 COPY ./s3k /s3k
 
 # Copy the local toolchain archive into the container
-COPY ./riscv64-unknown-elf-toolchain.tgz /s3k
-
-# Extract the local toolchain
-RUN tar -xzvf riscv64-unknown-elf-toolchain.tgz -C /s3k
+COPY ./riscv64-unknown-elf-toolchain /s3k/riscv64-unknown-elf-toolchain
 
 # Add the toolchain binaries to the PATH
-ENV PATH="/s3k/opt/riscv/bin:${PATH}"
+ENV PATH="/s3k/riscv64-unknown-elf-toolchain/opt/riscv/bin:${PATH}"
 
-RUN echo $PATH
-
-# Build Hello World
 WORKDIR /s3k/projects/fs
 
 RUN make disk-image
+#RUN make disk-read
 
-CMD make clean && make && make qemu
+RUN make
+# RUN make qemu
+
+CMD make qemu

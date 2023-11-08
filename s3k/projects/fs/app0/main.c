@@ -12,7 +12,7 @@ int main(void)
 	while (s3k_pmp_load(16, 1))
 		;
 	s3k_sync();
-	alt_puts("hello, world");
+	alt_puts("hello, worlds and stuff. TEST");
 
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
