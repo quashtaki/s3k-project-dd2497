@@ -1,22 +1,22 @@
-// See LICENSE file for copyright and license details.
+# See LICENSE file for copyright and license details.
 #include "macro.inc"
 #include "offsets.h"
 #include "csr.h"
 
 .globl trap_entry
+.globl trap_exit_pmp
 .globl trap_exit
-.globl trap_resume
 
 .type trap_entry, @function
+.type trap_exit_pmp, @function
 .type trap_exit, @function
-.type trap_resume, @function
 
 .section .text.trap
 .balign 16
 trap_entry:
-	/* Save user tp to scratch, load PCB pointer */
+	# Save user a0 to scratch, load PCB pointer
 	csrrw	a0,mscratch,a0
-	beqz	a0,_myield
+	beqz	a0,_machine_yield
 
 	sd	ra,PROC_RA(a0)
 	sd	sp,PROC_SP(a0)
@@ -27,7 +27,7 @@ trap_entry:
 	sd	t2,PROC_T2(a0)
 	sd	s0,PROC_S0(a0)
 	sd	s1,PROC_S1(a0)
-	/*sd	a0,PROC_A0(a0)*/
+	#sd	a0,PROC_A0(a0)
 	sd	a1,PROC_A1(a0)
 	sd	a2,PROC_A2(a0)
 	sd	a3,PROC_A3(a0)
@@ -51,49 +51,89 @@ trap_entry:
 	sd	t6,PROC_T6(a0)
 	csrr	t1,mepc
 	sd	t1,PROC_PC(a0)
-	csrrw	t2,mscratch, 0
+	csrrw	t2,mscratch,zero
 	sd	t2,PROC_A0(a0)
 
 
-	/* Load the global and stack pointer of the kernel. */
+	# Load the global and stack pointer of the kernel.
 	ld_gp
 	ld_sp	t0
 
 	csrr	t0,mcause
-	bltz	t0,_yield
+	bltz	t0,_user_yield
 
-	csrw	mstatus,MSTATUS_MIE
-
-	li	t1,MCAUSE_USER_ECALL
-	beq	t0,t1,_syscall
+#ifndef NPREMPT
+	csrs	mstatus,MSTATUS_MIE
+#endif
 
 _exception:
-	/* Otherwise, it is exception. */
-	csrr	a1,mcause
-	csrr	a2,mepc
-	csrr	a3,mtval
-	csrc	mstatus,MSTATUS_MIE
-	tail	handle_exception
+	# Save current process
+	mv	tp,a0
 
-_syscall:
-	csrc	mstatus,MSTATUS_MIE
-	tail	handle_syscall
+	# Load handler address
+1:	auipc	ra,%pcrel_hi(_exception_table)
+	slli	t0,t0,2
+	add	ra,ra,t0
+#ifndef NPREEMPT
+	csrc	mstatus,MSTATUS_MIE	# disable preemption
+#endif
+	jalr	ra,%pcrel_lo(1b)(ra)	# Call handler
 
-_myield:
+	# If a0 == tp, exit
+	beq	a0,tp,trap_exit
+
+	# Release the old process
+	li	t1,~1
+	amoand.d.rl	x0,t1,(tp)
+
+	# If a0 != NULL, exit
+	bnez	a0,trap_exit_pmp
+
+	# We have a yield
+	call sched
+
+	j	trap_exit_pmp
+
+_exception_table:
+.option push
+.option norvc
+	j	handle_exception
+	j	handle_exception
+	j	handle_illegal_instruction
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_syscall
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+	j	handle_exception
+.option pop
+
+_machine_yield:
 	csrrw	a0,mscratch,a0
-	ld_sp	t0
+_user_yield:
 
-	csrr	t0,mscratch
-	bltz	t0,__hang
+	csrr	t0,mcause
+	li	t1,0x8000000000000007
+	bne	t0,t1,__hang
 
-_yield:
-	/* Call scheduler */
-	tail	sched
+	# release old process
+	li	t1,~1
+	amoand.d.rl	x0,t1,(a0)
 
-trap_exit:
-	csrs	mstatus,MSTATUS_MIE
-	
-	/* Load PMP registers */
+	# call scheduler
+	call	sched
+
+trap_exit_pmp:
+#ifndef NPREMPT
+	csrw	mstatus,MSTATUS_MIE
+#endif
 	ld	s0,PROC_PMPADDR0(a0)
 	ld	s1,PROC_PMPADDR1(a0)
 	ld	s2,PROC_PMPADDR2(a0)
@@ -113,26 +153,23 @@ trap_exit:
 	csrw	pmpaddr7,s7
 	csrw	pmpcfg0,s8
 
-trap_resume:
-	csrs	mstatus,MSTATUS_MIE
-
-	/* Load call-used registers, ra, sp, gp, tp, pc */
+trap_exit:
+#ifndef NPREMPT
+	csrw	mstatus,MSTATUS_MIE
+#endif
 	ld	t0,PROC_PC(a0)
 	csrw	mepc,t0
 
-	ld	t0,PROC_WCET(a0)
-	csrw	mhpmcounter3,t0
-
 	ld	ra,PROC_RA(a0)
-	ld	sp,PROC_SP(a0)
-	ld	gp,PROC_GP(a0)
+	#ld	sp,PROC_A0(a0)
+	#ld	gp,PROC_A0(a0)
 	ld	tp,PROC_TP(a0)
 	ld	t0,PROC_T0(a0)
 	ld	t1,PROC_T1(a0)
 	ld	t2,PROC_T2(a0)
 	ld	s0,PROC_S0(a0)
 	ld	s1,PROC_S1(a0)
-	/*ld	a0,PROC_A0(a0) */
+	#ld	a0,PROC_A0(a0)
 	ld	a1,PROC_A1(a0)
 	ld	a2,PROC_A2(a0)
 	ld	a3,PROC_A3(a0)
@@ -155,17 +192,19 @@ trap_resume:
 	ld	t5,PROC_T5(a0)
 	ld	t6,PROC_T6(a0)
 
-	/* disable interrupt */
-	csrw	mstatus,0
+	# disable interrupt
+	csrw	mstatus,zero
 
-	/* Save PCB pointer */
+	# Save PCB pointer
 	csrw	mscratch,a0
 
-	/* Load user tp */
+	# Load user sp, gp and a0
+	ld	sp,PROC_SP(a0)
+	ld	gp,PROC_GP(a0)
 	ld	a0,PROC_A0(a0)
 
 	mret
 
 __hang:
-	ebreak
+	nop
 	j __hang

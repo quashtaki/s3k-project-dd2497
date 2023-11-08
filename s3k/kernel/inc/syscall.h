@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cap_types.h"
+#include "macro.h"
 #include "proc.h"
 
 #include <stdint.h>
@@ -26,6 +27,8 @@ typedef enum {
 	// Monitor
 	SYS_MON_SUSPEND,
 	SYS_MON_RESUME,
+	SYS_MON_STATE_GET,
+	SYS_MON_YIELD,
 	SYS_MON_REG_READ,
 	SYS_MON_REG_WRITE,
 	SYS_MON_CAP_READ,
@@ -35,6 +38,7 @@ typedef enum {
 
 	// Socket
 	SYS_SOCK_SEND,
+	SYS_SOCK_RECV,
 	SYS_SOCK_SENDRECV,
 } syscall_t;
 
@@ -48,7 +52,7 @@ typedef union {
 	} get_info;
 
 	struct {
-		regnr_t regnr;
+		regnr_t reg;
 		uint64_t val;
 	} reg;
 
@@ -75,7 +79,7 @@ typedef union {
 	struct {
 		cidx_t mon_idx;
 		pid_t pid;
-		regnr_t regnr;
+		regnr_t reg;
 		uint64_t val;
 	} mon_reg;
 
@@ -96,13 +100,12 @@ typedef union {
 
 	struct {
 		cidx_t sock_idx;
-		cidx_t cbuf_idx;
+		cidx_t cap_idx;
 		bool send_cap;
-		uint64_t data0, data1, data2, data3;
-		uint64_t serv_time;
+		uint64_t data[4];
 	} sock;
 } sys_args_t;
 
 _Static_assert(sizeof(sys_args_t) == 64, "sys_args_t has the wrong size");
 
-void handle_syscall(proc_t *p) __attribute__((noreturn));
+proc_t *handle_syscall(proc_t *);

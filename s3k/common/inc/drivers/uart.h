@@ -1,16 +1,10 @@
 #pragma once
 
-/** Enable serial port. */
-void uart_init(void);
+/* Initializes UART */
+void uart_init(void *base);
 
-/** Put char on serial port. */
-int uart_putc(char c);
+/* Puts one character in UART */
+int uart_putc(void *base, char c);
 
-/** Get char from serial port. */
-int uart_getc(void);
-
-/** Puts a string on serial port */
-int uart_puts(const char *s);
-
-/** Gets a string from serial port */
-char *uart_gets(char *s);
+/* Gets one character from UART */
+int uart_getc(void *base);

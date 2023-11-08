@@ -1,17 +1,44 @@
-export BUILD=${abspath build}
-export S3K_CONF_H=${abspath s3k_conf.h}
+.POSIX:
 
-DIRS=../../kernel app0
+export PLATFORM   ?=qemu_virt
+export ROOT       :=${abspath ../..}
+export BUILD      :=${abspath build/${PLATFORM}}
+export S3K_CONF_H :=${abspath s3k_conf.h}
 
-all: ${DIRS}
+include ${ROOT}/common/plat/${PLATFORM}.mk
 
-${DIRS}:
-	@${MAKE} -C $@
+APPS=app0
 
-gdb qemu: all
-	./scripts/$@.sh
+ELFS:=${patsubst %,${BUILD}/%.elf,kernel ${APPS}}
+
+all: kernel ${APPS}
 
 clean:
-	rm -rf ${BUILD}
+	@${MAKE} -C ${ROOT}/common clean
+	@${MAKE} -C ${ROOT}/kernel clean
+	@for prog in ${APPS}; do \
+		${MAKE} -f build.mk PROGRAM=$$prog clean; \
+		done
 
-.PHONY: all clean ${DIRS} gdb qemu
+common:
+	@${MAKE} -C ${ROOT}/common
+
+kernel: common
+	@${MAKE} -C ${ROOT}/kernel
+
+qemu: kernel ${APPS}
+	@ELFS="${ELFS}" ${ROOT}/scripts/qemu.sh
+
+qemu-gdb: kernel ${APPS}
+	@ELFS="${ELFS}" ${ROOT}/scripts/qemu.sh -gdb tcp::3333 -S
+
+gdb: kernel ${APPS}
+	@ELFS="${ELFS}" ${ROOT}/scripts/gdb.sh
+
+gdb-openocd: kernel ${APPS}
+	@ELFS="${ELFS}" ${ROOT}/scripts/gdb-openocd.sh
+
+${APPS}: common
+	@${MAKE} -f build.mk PROGRAM=$@
+
+.PHONY: all clean qemu qemu-gdb gdb kernel common ${APPS}

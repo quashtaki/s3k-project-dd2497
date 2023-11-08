@@ -1,50 +1,65 @@
 #include "kernel.h"
 
+#include "altc/altio.h"
+#include "altc/init.h"
 #include "cap_table.h"
 #include "csr.h"
-#include "drivers/uart.h"
 #include "kassert.h"
 #include "mcslock.h"
 #include "proc.h"
 #include "sched.h"
 
 static mcslock_t lock;
+static qnode_t nodes[S3K_MAX_HART + 1];
+static uint64_t wcet;
 
 void kernel_init(void)
 {
+	alt_init();
 	mcslock_init(&lock);
-	uart_init();
 	ctable_init();
 	sched_init();
 	proc_init();
-	uart_puts("kernel initialized");
+	alt_puts("kernel initialized");
 }
 
-bool kernel_lock(proc_t *p)
+uint64_t kernel_wcet(void)
 {
-	kernel_hook_sys_exit(p);
-	bool res = mcslock_try_acquire(&lock, &p->qnode);
-	kernel_hook_sys_entry(p);
-	return res;
+	return wcet;
 }
 
-void kernel_unlock(proc_t *p)
+void kernel_wcet_reset(void)
 {
-	mcslock_release(&lock, &p->qnode);
+	wcet = 0;
 }
 
-void kernel_hook_sys_entry(proc_t *p)
+bool kernel_lock_acquire(void)
 {
-#ifdef INSTRUMENT
-	csrw_mcycle(0);
+	uint64_t i = csrr_mhartid();
+#ifndef NPREMPT
+	return mcslock_try_acquire(&lock, &nodes[i]);
+#else
+	return mcslock_acquire(&lock, &nodes[i]);
 #endif
 }
 
-void kernel_hook_sys_exit(proc_t *p)
+void kernel_lock_release(void)
 {
-#ifdef INSTRUMENT
-	uint64_t cycles = csrr_mcycle();
-	if (p->tf.wcet < cycles)
-		p->tf.wcet = cycles;
-#endif
+	uint64_t i = csrr_mhartid();
+	mcslock_release(&lock, &nodes[i]);
+}
+
+bool kernel_preempt(void)
+{
+	return csrr_mip();
+}
+
+void kernel_preempt_enable(void)
+{
+	csrs_mstatus(MSTATUS_MIE);
+}
+
+void kernel_preempt_disable(void)
+{
+	csrc_mstatus(MSTATUS_MIE);
 }

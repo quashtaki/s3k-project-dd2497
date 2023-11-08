@@ -1,6 +1,7 @@
-// Kernel configuration for hello
-#ifndef __S3K_CONF_H__
-#define __S3K_CONF_H__
+#pragma once
+
+#define PLATFORM_VIRT
+#include "plat/config.h"
 
 // Number of user processes
 #define S3K_PROC_CNT 2
@@ -15,7 +16,7 @@
 #define S3K_SLOT_CNT 32ull
 
 // Length of slots in ticks.
-#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT / 100ull)
+#define S3K_SLOT_LEN (S3K_RTC_HZ / S3K_SLOT_CNT / 1ull)
 
 // Scheduler time
 #define S3K_SCHED_TIME (S3K_SLOT_LEN / 10)
@@ -23,5 +24,3 @@
 // If debugging, comment
 #define NDEBUG
 #define INSTRUMENT
-
-#endif /* __S3K_CONF_H__ */

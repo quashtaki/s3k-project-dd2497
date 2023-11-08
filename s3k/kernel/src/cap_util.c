@@ -1,7 +1,5 @@
 #include "cap_util.h"
 
-#include "pmp.h"
-
 cap_t cap_mk_time(hart_t hart, time_slot_t bgn, time_slot_t end)
 {
 	cap_t cap;
@@ -86,73 +84,6 @@ static inline bool is_bit_subset(uint64_t a, uint64_t b)
 	return (a & b) == a;
 }
 
-static inline addr_t tag_block_to_addr(tag_t tag, block_t block)
-{
-	return ((uint64_t)tag << MAX_BLOCK_SIZE)
-	       + ((uint64_t)block << MIN_BLOCK_SIZE);
-}
-
-static bool cap_time_revokable(cap_t p, cap_t c)
-{
-	return (c.type == CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_subset(p.time.bgn, p.time.end, c.time.bgn,
-				  c.time.end);
-}
-
-static bool cap_mem_revokable(cap_t p, cap_t c)
-{
-	if (c.type == CAPTY_PMP) {
-		uint64_t p_bgn, p_end, c_base, c_size;
-		p_bgn = tag_block_to_addr(p.mem.tag, p.mem.bgn);
-		p_end = tag_block_to_addr(p.mem.tag, p.mem.end);
-		pmp_napot_decode(c.pmp.addr, &c_base, &c_size);
-		return is_range_subset(p_bgn, p_end, c_base, c_base + c_size);
-	}
-	return (c.type == CAPTY_MEMORY) && (p.mem.tag == c.mem.tag)
-	       && is_range_subset(p.mem.bgn, p.mem.end, c.mem.bgn, c.mem.end);
-}
-
-static bool cap_mon_revokable(cap_t p, cap_t c)
-{
-	return (c.type == CAPTY_MONITOR)
-	       && is_range_subset(p.mon.bgn, p.mon.end, c.mon.bgn, c.mon.end);
-}
-
-static bool cap_chan_revokable(cap_t p, cap_t c)
-{
-	if (c.type == CAPTY_SOCKET) {
-		return is_range_subset(p.chan.bgn, p.chan.end, c.sock.chan,
-				       c.sock.chan + 1);
-	}
-	return (c.type == CAPTY_CHANNEL)
-	       && is_range_subset(p.chan.bgn, p.chan.end, c.chan.bgn,
-				  c.chan.end);
-}
-
-static bool cap_sock_revokable(cap_t p, cap_t c)
-{
-	return (p.sock.tag == 0) && (c.sock.tag != 0)
-	       && (p.sock.chan == c.sock.chan);
-}
-
-bool cap_is_revokable(cap_t p, cap_t c)
-{
-	switch (p.type) {
-	case CAPTY_TIME:
-		return cap_time_revokable(p, c);
-	case CAPTY_MEMORY:
-		return cap_mem_revokable(p, c);
-	case CAPTY_MONITOR:
-		return cap_mon_revokable(p, c);
-	case CAPTY_CHANNEL:
-		return cap_chan_revokable(p, c);
-	case CAPTY_SOCKET:
-		return cap_sock_revokable(p, c);
-	default:
-		return false;
-	}
-}
-
 bool cap_is_valid(cap_t c)
 {
 	switch (c.type) {
@@ -178,7 +109,7 @@ bool cap_is_valid(cap_t c)
 static bool cap_time_derivable(cap_t p, cap_t c)
 {
 	return (c.type == CAPTY_TIME) && (p.time.hart == c.time.hart)
-	       && is_range_prefix(p.time.bgn, p.time.end, c.time.bgn,
+	       && is_range_prefix(p.time.mrk, p.time.end, c.time.bgn,
 				  c.time.end);
 }
 

@@ -1,0 +1,9 @@
+name: Clang Format Checker
+on: [push]
+jobs:
+  clang-format-checking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: sudo apt install clang-format
+      - run: clang-format --dry-run --Werror $(find -wholename "*.[ch]" -not -path '*/.*')

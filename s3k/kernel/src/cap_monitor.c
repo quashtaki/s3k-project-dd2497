@@ -4,7 +4,7 @@
 #include "cap_pmp.h"
 #include "proc.h"
 
-static err_t check_monitor(cte_t mon, uint64_t pid, bool check_suspended)
+static err_t check_monitor(cte_t mon, pid_t pid, bool check_suspended)
 {
 	cap_t mon_cap = cte_cap(mon);
 	if (mon_cap.type != CAPTY_MONITOR || mon_cap.mon.mrk > pid
@@ -28,7 +28,7 @@ static err_t check_monitor_move(cte_t mon, cte_t src, cte_t dst)
 	return SUCCESS;
 }
 
-err_t cap_monitor_suspend(cte_t mon, uint64_t pid)
+err_t cap_monitor_suspend(cte_t mon, pid_t pid)
 {
 	err_t err = check_monitor(mon, pid, false);
 	if (!err)
@@ -36,7 +36,7 @@ err_t cap_monitor_suspend(cte_t mon, uint64_t pid)
 	return err;
 }
 
-err_t cap_monitor_resume(cte_t mon, uint64_t pid)
+err_t cap_monitor_resume(cte_t mon, pid_t pid)
 {
 	err_t err = check_monitor(mon, pid, false);
 	if (!err)
@@ -44,25 +44,45 @@ err_t cap_monitor_resume(cte_t mon, uint64_t pid)
 	return err;
 }
 
-err_t cap_monitor_reg_read(cte_t mon, uint64_t pid, uint64_t reg, uint64_t *val)
+err_t cap_monitor_state_get(cte_t mon, pid_t pid, proc_state_t *state)
 {
-	err_t err = check_monitor(mon, pid, true);
+	err_t err = check_monitor(mon, pid, false);
 	if (!err) {
-		uint64_t *regs = (uint64_t *)&(proc_get(pid)->tf);
-		*val = reg < N_REG ? regs[reg] : 0;
+		proc_t *proc = proc_get(pid);
+		*state = proc->state;
 	}
 	return err;
 }
 
-err_t cap_monitor_reg_write(cte_t mon, uint64_t pid, uint64_t reg, uint64_t val,
-			    uint64_t *ret)
+err_t cap_monitor_yield(cte_t mon, pid_t pid, proc_t **next)
+{
+	err_t err = check_monitor(mon, pid, false);
+	if (!err) {
+		proc_t *monitor = *next;
+		proc_t *proc = proc_get(pid);
+		if (proc_acquire(proc)) {
+			*next = proc;
+			proc_release(monitor);
+			return SUCCESS;
+		}
+		return ERR_INVALID_STATE;
+	}
+	return err;
+}
+
+err_t cap_monitor_reg_read(cte_t mon, pid_t pid, reg_t reg, uint64_t *val)
 {
 	err_t err = check_monitor(mon, pid, true);
-	if (!err && reg < N_REG) {
-		uint64_t *regs = (uint64_t *)&(proc_get(pid)->tf);
-		*ret = regs[reg];
-		regs[reg] = val;
-	}
+	if (!err)
+		*val = proc_get(pid)->regs[reg];
+	return err;
+}
+
+err_t cap_monitor_reg_write(cte_t mon, pid_t pid, reg_t reg, uint64_t val)
+{
+	err_t err = check_monitor(mon, pid, true);
+	if (!err)
+		proc_get(pid)->regs[reg] = val;
 	return err;
 }
 
@@ -74,15 +94,15 @@ err_t cap_monitor_cap_read(cte_t mon, cte_t src, cap_t *cap)
 	return err;
 }
 
-err_t cap_monitor_cap_move(cte_t mon, cte_t src, cte_t dst, cap_t *cap)
+err_t cap_monitor_cap_move(cte_t mon, cte_t src, cte_t dst)
 {
 	err_t err = check_monitor_move(mon, src, dst);
 	if (!err)
-		err = cap_move(src, dst, cap);
+		err = cap_move(src, dst);
 	return err;
 }
 
-err_t cap_monitor_pmp_load(cte_t mon, cte_t pmp, uint64_t slot)
+err_t cap_monitor_pmp_load(cte_t mon, cte_t pmp, pmp_slot_t slot)
 {
 	err_t err = check_monitor(mon, cte_pid(pmp), true);
 	if (!err)

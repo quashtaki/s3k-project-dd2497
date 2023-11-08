@@ -1,9 +1,13 @@
 #include "cap_ipc.h"
 
+#include "altc/string.h"
 #include "cap_ops.h"
 #include "cap_table.h"
+#include "csr.h"
+#include "drivers/time.h"
 #include "error.h"
 #include "kassert.h"
+#include "macro.h"
 #include "proc.h"
 
 #include <stdint.h>
@@ -11,153 +15,215 @@
 #define SERVER 0
 #define CLIENT 1
 
-static proc_t *receivers[S3K_CHAN_CNT][2];
+struct {
+	proc_t *server;
+	proc_t *client;
+	cte_t cap_buf;
+} channels[S3K_CHAN_CNT];
 
-static proc_t *_get_client(uint64_t chan);
-static void _set_client(uint64_t chan, proc_t *client, ipc_mode_t mode);
-static proc_t *_get_server(uint64_t chan);
-static void _set_server(uint64_t chan, proc_t *server, ipc_mode_t mode);
-static err_t _validate_socket(cap_t cap, bool send_cap);
-
-proc_t *_get_client(uint64_t chan)
+static err_t do_send(cap_t cap, const ipc_msg_t *msg, proc_t **next)
 {
-	proc_t *p = receivers[chan][CLIENT];
-	if (p && proc_ipc_acquire(p, chan))
-		return p;
-	return NULL;
+	bool is_server = (cap.sock.tag == 0);
+	cte_t cap_buf = channels[cap.sock.chan].cap_buf;
+
+	uint64_t curr_time = time_get();
+	uint64_t timeout = timeout_get(csrr_mhartid());
+
+	if (curr_time > timeout)
+		return ERR_PREEMPTED;
+
+	proc_t *recv;
+
+	if (is_server) {
+		recv = channels[cap.sock.chan].client;
+		if (!recv)
+			return ERR_NO_RECEIVER;
+		channels[cap.sock.chan].client = NULL;
+	} else {
+		recv = channels[cap.sock.chan].server;
+		if (!recv)
+			return ERR_NO_RECEIVER;
+		if (cap.sock.mode == IPC_YIELD
+		    && curr_time + recv->regs[REG_SERVTIME] >= timeout)
+			return ERR_NO_RECEIVER;
+		channels[cap.sock.chan].server = NULL;
+	}
+
+	if (proc_ipc_acquire(recv, cap.sock.chan)) {
+		recv->regs[REG_T0] = SUCCESS;
+		recv->regs[REG_A0] = cap.sock.tag;
+		recv->regs[REG_A1] = msg->send_cap ? cte_cap(cap_buf).raw : 0;
+		recv->regs[REG_A2] = msg->data[0];
+		recv->regs[REG_A3] = msg->data[1];
+		recv->regs[REG_A4] = msg->data[2];
+		recv->regs[REG_A5] = msg->data[3];
+		if (msg->send_cap)
+			cap_move(msg->cap_buf, cap_buf);
+
+		if (cap.sock.mode == IPC_YIELD) {
+			*next = recv;
+		} else {
+			proc_release(recv);
+		}
+		return SUCCESS;
+	} else if (is_server) {
+		if (msg->send_cap)
+			cap_delete(msg->cap_buf);
+		return SUCCESS;
+	}
+	return ERR_NO_RECEIVER;
 }
 
-void _set_client(uint64_t chan, proc_t *proc, ipc_mode_t mode)
+static void do_recv(cap_t cap, cte_t cap_buf, proc_t *recv)
 {
-	proc_ipc_wait(proc, chan);
-	// If no yielding mode, we have no timeout.
-	if (mode == IPC_NOYIELD)
-		proc->timeout = UINT64_MAX;
-	proc->service_time = 0;
-	receivers[chan][CLIENT] = proc;
+	bool is_server = (cap.sock.tag == 0);
+	if (is_server) {
+		channels[cap.sock.chan].server = recv;
+		channels[cap.sock.chan].cap_buf = cap_buf;
+		recv->timeout = UINT64_MAX;
+		proc_ipc_wait(recv, cap.sock.chan);
+	} else {
+		channels[cap.sock.chan].client = recv;
+		channels[cap.sock.chan].cap_buf = cap_buf;
+		if (cap.sock.mode == IPC_NOYIELD)
+			recv->timeout = UINT64_MAX;
+		proc_ipc_wait(recv, cap.sock.chan);
+	}
 }
 
-proc_t *_get_server(uint64_t chan)
+static err_t reply(cte_t sock, cap_t cap, const ipc_msg_t *msg, proc_t **next)
 {
-	proc_t *p = receivers[chan][SERVER];
-	if (p && proc_ipc_acquire(p, chan))
-		return p;
-	return NULL;
+	if (msg->send_cap && !(cap.sock.perm & IPC_SCAP))
+		return ERR_INVALID_SOCKET;
+	return do_send(cap, msg, next);
 }
 
-void _set_server(uint64_t chan, proc_t *proc, ipc_mode_t mode)
+static err_t send(cte_t sock, cap_t cap, const ipc_msg_t *msg, proc_t **next)
 {
-	proc_ipc_wait(proc, chan);
-	if (mode == IPC_NOYIELD)
-		proc->service_time = 0;
-	proc->timeout = UINT64_MAX;
-	receivers[chan][SERVER] = proc;
+	if (msg->send_cap && !(cap.sock.perm & IPC_CCAP))
+		return ERR_INVALID_SOCKET;
+	return do_send(cap, msg, next);
 }
 
-err_t _validate_socket(cap_t cap, bool send_cap)
+static err_t recv(cte_t sock, cap_t cap, cte_t cap_buf, proc_t **next)
 {
-	if (!cap.type)
+	do_recv(cap, cap_buf, *next);
+	*next = NULL;
+	return ERR_TIMEOUT;
+}
+
+static err_t replyrecv(cte_t sock, cap_t cap, const ipc_msg_t *msg,
+		       proc_t **next)
+{
+	cte_t cap_buf = msg->cap_buf;
+	proc_t *server = *next;
+
+	// Can send capability?
+	if (msg->send_cap && !(cap.sock.perm & IPC_SCAP))
+		return ERR_INVALID_SOCKET;
+
+	// Can receive capability?
+	if ((cap.sock.perm & IPC_CCAP) && !cte_is_empty(cap_buf)
+	    && !msg->send_cap)
+		return ERR_DST_OCCUPIED;
+
+	err_t err = do_send(cap, msg, next);
+	if (err == ERR_PREEMPTED) {
+		*next = NULL;
+		return err;
+	}
+	do_recv(cap, cap_buf, server);
+	if (*next == server)
+		*next = NULL;
+	return ERR_TIMEOUT;
+}
+
+static err_t call(cte_t sock, cap_t cap, const ipc_msg_t *msg, proc_t **next)
+{
+	cte_t cap_buf = msg->cap_buf;
+	proc_t *client = *next;
+
+	// Can send capability?
+	if (msg->send_cap && !(cap.sock.perm & IPC_CCAP))
+		return ERR_INVALID_SOCKET;
+
+	// Can receive capability?
+	if ((cap.sock.perm & IPC_SCAP) && !cte_is_empty(cap_buf)
+	    && !msg->send_cap)
+		return ERR_DST_OCCUPIED;
+
+	err_t err = do_send(cap, msg, next);
+	if (err)
+		return err;
+	do_recv(cap, cap_buf, client);
+	if (*next == client)
+		*next = NULL;
+	return ERR_TIMEOUT;
+}
+
+/* Entry points */
+err_t cap_sock_send(cte_t sock, const ipc_msg_t *msg, proc_t **next)
+{
+	cap_t cap = cte_cap(sock);
+	if (cap.type == CAPTY_NONE)
 		return ERR_EMPTY;
 	if (cap.type != CAPTY_SOCKET)
 		return ERR_INVALID_SOCKET;
-	if (!send_cap)
-		return SUCCESS;
-	if (cap.sock.perm & (cap.sock.tag ? IPC_CCAP : IPC_SCAP))
-		return SUCCESS;
-	return ERR_INVALID_SOCKET;
-}
-
-err_t _cap_sock_send(proc_t *sender, cap_t cap, bool send_cap,
-		     uint64_t *yield_to)
-{
-	uint64_t chan = cap.sock.chan;
-	uint64_t tag = cap.sock.tag;
-	uint64_t mode = cap.sock.mode;
-
-	proc_t *recv = tag ? _get_server(chan) : _get_client(chan);
-
-	if (!recv)
-		return ERR_NO_RECEIVER;
-
-	recv->tf.t0 = SUCCESS;
-	recv->tf.a0 = tag;
-	recv->tf.a1 = 0;
-	recv->tf.a2 = sender->tf.a1;
-	recv->tf.a3 = sender->tf.a2;
-	recv->tf.a4 = sender->tf.a3;
-	recv->tf.a5 = sender->tf.a4;
-	if (send_cap)
-		cap_move(sender->cap_buf, recv->cap_buf, (cap_t *)&recv->tf.a1);
-
-	if (mode == IPC_YIELD) {
-		// Yield to receiver
-		*yield_to = (uint64_t)recv;
-		return YIELD;
+	if ((*next)->state & PSF_SUSPENDED) {
+		*next = NULL;
+		return ERR_PREEMPTED;
+	}
+	if (cap.sock.tag == 0) {
+		return reply(sock, cap, msg, next);
 	} else {
-		// No yield, just success
-		proc_release(recv);
-		return SUCCESS;
+		return send(sock, cap, msg, next);
 	}
 }
 
-err_t _cap_sock_recv(proc_t *recv, cap_t sock_cap)
+err_t cap_sock_recv(cte_t sock, cte_t cap_buf, proc_t **next)
 {
-	uint64_t chan = sock_cap.sock.chan;
-	uint64_t tag = sock_cap.sock.tag;
-	ipc_mode_t mode = sock_cap.sock.mode;
-	bool recv_cap = sock_cap.sock.perm & (tag ? IPC_SCAP : IPC_CCAP);
-
-	// if we can receive a capability, free the slot.
-	if (recv_cap)
-		cap_delete(recv->cap_buf);
-
-	if (tag) {
-		// tag != 0 means client capability
-		_set_client(chan, recv, mode);
-	} else {
-		// tag == 0 means client capability
-		_set_server(chan, recv, mode);
+	cap_t cap = cte_cap(sock);
+	if (cap.type == CAPTY_NONE)
+		return ERR_EMPTY;
+	if (cap.type != CAPTY_SOCKET)
+		return ERR_INVALID_CAPABILITY;
+	if (cap.sock.tag != 0)
+		return ERR_INVALID_SOCKET;
+	if ((cap.sock.perm & IPC_CCAP) && !cte_is_empty(cap_buf))
+		return ERR_DST_OCCUPIED;
+	if ((*next)->state & PSF_SUSPENDED) {
+		*next = NULL;
+		return ERR_PREEMPTED;
 	}
-	return YIELD;
+	return recv(sock, cap, cap_buf, next);
 }
 
-err_t cap_sock_send(proc_t *proc, cte_t sock, bool send_cap, uint64_t *yield_to)
+err_t cap_sock_sendrecv(cte_t sock, const ipc_msg_t *msg, proc_t **next)
 {
 	cap_t cap = cte_cap(sock);
+	if (cap.type == CAPTY_NONE)
+		return ERR_EMPTY;
+	if (cap.type != CAPTY_SOCKET)
+		return ERR_INVALID_CAPABILITY;
+	if ((*next)->state & PSF_SUSPENDED) {
+		*next = NULL;
+		return ERR_PREEMPTED;
+	}
 
-	err_t err = _validate_socket(cap, send_cap);
-	if (err)
-		return err;
-	if (proc->state & PSF_SUSPENDED)
-		return ERR_SUSPENDED;
-	return _cap_sock_send(proc, cap, send_cap, yield_to);
-}
-
-err_t cap_sock_sendrecv(proc_t *proc, cte_t sock, bool send_cap,
-			uint64_t *yield_to)
-{
-	cap_t cap = cte_cap(sock);
-	err_t err = _validate_socket(cap, send_cap);
-	if (err)
-		return err;
-	if (proc->state & PSF_SUSPENDED)
-		return ERR_SUSPENDED;
-	err = _cap_sock_send(proc, cap, send_cap, yield_to);
-
-	if (cap.sock.tag && (err == ERR_NO_RECEIVER))
-		return err;
-	// Delete capability if it should have been sent
-	if (send_cap)
-		cap_delete(proc->cap_buf);
-	_cap_sock_recv(proc, cap);
-	return YIELD;
+	if (cap.sock.tag == 0) {
+		return replyrecv(sock, cap, msg, next);
+	} else {
+		return call(sock, cap, msg, next);
+	}
 }
 
 void cap_sock_clear(cap_t cap, proc_t *p)
 {
-	if (!cap.sock.tag) {
-		receivers[cap.sock.chan][SERVER] = NULL;
-	} else if (receivers[cap.sock.chan][CLIENT] == p) {
-		receivers[cap.sock.chan][CLIENT] = NULL;
+	if (cap.sock.tag == 0) {
+		channels[cap.sock.chan].server = NULL;
+		channels[cap.sock.chan].client = NULL;
+		channels[cap.sock.chan].cap_buf = NULL;
+	} else if (channels[cap.sock.chan].client == p) {
+		channels[cap.sock.chan].client = NULL;
 	}
 }

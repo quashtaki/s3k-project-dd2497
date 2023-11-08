@@ -1,0 +1,12 @@
+docs
+*.elf
+*.a
+*.da
+*.o
+*.d
+*.su
+*.out
+*.elf
+*.bin
+*.hex
+*.res
