@@ -53,10 +53,9 @@ int main(void)
 		;
 	while (s3k_pmp_load(16, 1))
 		;
-	s3k_sync(); // wait on major frame
-	alt_puts("hello, worlds"); //print
-	alt_printf("uart_addr: %X\n", uart_addr); //print
-	
+	s3k_sync();
+	alt_puts("hello, world");
+
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
 	alt_puts("File system mounted");
