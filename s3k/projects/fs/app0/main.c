@@ -18,6 +18,8 @@
 #define MONITOR 8
 #define CHANNEL 9
 
+#define APP_ADDRESS 0x80020000
+
 void setup_uart(uint64_t uart_idx)
 {
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
@@ -30,10 +32,17 @@ void setup_uart(uint64_t uart_idx)
 	s3k_sync_mem();
 }
 
+void setup_ram(uint64_t ram_idx) {
+	uint64_t app_addr = s3k_napot_encode(APP_ADDRESS, 0x2000);
+	s3k_cap_derive(RAM_MEM, ram_idx, s3k_mk_pmp(app_addr, S3K_MEM_RWX));
+	s3k_pmp_load(ram_idx, 2);
+	s3k_sync_mem();
+}
+
 void setup_app1(uint64_t tmp)
 {
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
-	uint64_t app1_addr = s3k_napot_encode(0x80020000, 0x10000);
+	uint64_t app1_addr = s3k_napot_encode(APP_ADDRESS, 0x10000);
 
 	// Derive a PMP capability for app1 main memory
 	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(app1_addr, S3K_MEM_RWX));
@@ -56,7 +65,7 @@ void start_app1(uint64_t tmp) {
 	// i guess this splits the time slot?
 
 	// Write start PC of app1 to PC
-	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80020000);
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
 
 	// Start app1
 	s3k_mon_resume(MONITOR, APP1_PID);
@@ -75,14 +84,12 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 
 int main(void)
 {
-
-	
 	s3k_cap_delete(HART1_TIME);
 	s3k_cap_delete(HART2_TIME);
 	s3k_cap_delete(HART3_TIME);
 	// This is the same stuff as setup_uart
 	setup_uart(10);
-
+	setup_ram(13);
 	// Modify the FileSystem example to boot process A
 	setup_app1(11);
 	setup_socket(12, 11);
@@ -95,19 +102,7 @@ int main(void)
 	FRESULT fr;
 	FIL Fil;			/* File object needed for each open file */
 
-	// fr = f_open(&Fil, "newfile.txt", FA_WRITE | FA_CREATE_ALWAYS);	/* Create a file */
-	// if (fr == FR_OK) {
-	// 	f_write(&Fil, "It works!\r\n", 11, &bw);	/* Write data to the file */
-	// 	fr = f_close(&Fil);							/* Close the file */
-	// 	if (fr == FR_OK && bw == 11) {
-	// 		alt_puts("File saved\n");
-	// 	}
-	// } else{
-	// 	alt_puts("File not opened\n");
-	// }
-
 	// Copy the binary of B to the disk image
-
 	char buffer[1024];
 	alt_puts("made a buffer");
 	// Allow A to send a message to the filesystem with the path to executable B
@@ -118,19 +113,15 @@ int main(void)
 	// Resume app1
 	start_app1(11);
 	
-	alt_puts("app1 done");
-	
-	// this actually works now idk what i did
+	// Wait for reply
 	s3k_reply_t reply;
 	s3k_reg_write(S3K_REG_SERVTIME, 4500);
 	reply = s3k_sock_recv(12, 0);
 	if (reply.err)
 		alt_puts("timeout");
-
 	alt_puts((char *)reply.data);
-	alt_puts("got here");
 
-
+	// read file with path received from app 1, place into buffer
 	fr = f_open(&Fil, (char*)reply.data, FA_READ);
 	alt_puts("opened a file");
 	if (fr == FR_OK) {
@@ -139,11 +130,21 @@ int main(void)
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
 			buffer[bw] = '\0';
-			alt_printf(buffer);
+			alt_printf("%x",buffer);
 		}
 	} else{
 		alt_puts("File not opened\n");
 	}
-
+	s3k_mon_suspend(MONITOR, APP1_PID);
+	
+	//copy binary of app2 to app1's address
+	for (int i = 0; i < sizeof(buffer); i++) {
+		if (buffer[i] == "\0") break;
+        *(((char *)(APP_ADDRESS) + i)) = buffer[i]; 
+    }
+	
+	// Move back app1 PC to start
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+	s3k_mon_resume(MONITOR, APP1_PID);
 	alt_puts("Done");
 }
