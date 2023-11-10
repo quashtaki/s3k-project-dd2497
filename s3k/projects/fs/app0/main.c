@@ -47,25 +47,28 @@ void setup_app1(uint64_t tmp)
 
 }
 
-void start_app1() {
+void start_app1(uint64_t tmp) {
 	// derive a time slice capability
-	s3k_mon_cap_move(MONITOR, APP0_PID, HART1_TIME, APP1_PID, 2);
+	s3k_cap_derive(HART0_TIME, tmp,
+		       s3k_mk_time(S3K_MIN_HART, 0, S3K_SLOT_CNT / 2));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 2);
+
+	// i guess this splits the time slot?
 
 	// Write start PC of app1 to PC
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80020000);
 
 	// Start app1
 	s3k_mon_resume(MONITOR, APP1_PID);
-
 }
 
 void setup_socket(uint64_t socket, uint64_t tmp)
 {
 	s3k_cap_derive(CHANNEL, socket,
-		       s3k_mk_socket(0, S3K_IPC_YIELD,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
 				     S3K_IPC_SDATA | S3K_IPC_CDATA, 0));
 	s3k_cap_derive(socket, tmp,
-		       s3k_mk_socket(0, S3K_IPC_YIELD,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
 				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 3);
 }
@@ -82,7 +85,7 @@ int main(void)
 
 	// Modify the FileSystem example to boot process A
 	setup_app1(11);
-	setup_socket(12, 13);
+	setup_socket(12, 11);
 	alt_puts("Starting fs");
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
@@ -113,16 +116,19 @@ int main(void)
 		;
 	alt_puts("starting app1");
 	// Resume app1
-	start_app1();
+	start_app1(11);
 	
 	alt_puts("app1 done");
+	
+	// this actually works now idk what i did
 	s3k_reply_t reply;
 	s3k_reg_write(S3K_REG_SERVTIME, 4500);
 	reply = s3k_sock_recv(12, 0);
 	if (reply.err)
 		alt_puts("timeout");
-	
 
+	alt_puts((char *)reply.data);
+	alt_puts("got here");
 
 
 	fr = f_open(&Fil, (char*)reply.data, FA_READ);

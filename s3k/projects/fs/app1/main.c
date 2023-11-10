@@ -19,4 +19,6 @@ int main(void)
 	s3k_err_t err = s3k_sock_send(3, &msg);
 	if (err == S3K_ERR_TIMEOUT)
 		alt_puts("timeout");
+
+	alt_printf("app1 sent");
 }
