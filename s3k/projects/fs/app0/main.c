@@ -56,6 +56,23 @@ void setup_app1(uint64_t tmp)
 
 }
 
+void setup_app2(uint64_t tmp)
+{
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+	uint64_t app1_addr = s3k_napot_encode(0x80020000, 0x10000);
+
+	// Derive a PMP capability for app1 main memory
+	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(app1_addr, S3K_MEM_RWX));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 0);
+	s3k_mon_pmp_load(MONITOR, APP1_PID, 0, 0);
+
+	// Derive a PMP capability for uart
+	s3k_cap_derive(UART_MEM, tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 1);
+	s3k_mon_pmp_load(MONITOR, APP1_PID, 1, 1);
+
+}
+
 void start_app1(uint64_t tmp) {
 	// derive a time slice capability
 	s3k_cap_derive(HART0_TIME, tmp,
@@ -66,6 +83,21 @@ void start_app1(uint64_t tmp) {
 
 	// Write start PC of app1 to PC
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+
+	// Start app1
+	s3k_mon_resume(MONITOR, APP1_PID);
+}
+
+void start_app2(uint64_t tmp) {
+	// derive a time slice capability
+	s3k_cap_derive(HART0_TIME, tmp,
+		       s3k_mk_time(S3K_MIN_HART, 0, S3K_SLOT_CNT / 2));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 2);
+
+	// i guess this splits the time slot?
+
+	// Write start PC of app1 to PC
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80020000);
 
 	// Start app1
 	s3k_mon_resume(MONITOR, APP1_PID);
@@ -125,7 +157,7 @@ int main(void)
 	fr = f_open(&Fil, (char*)reply.data, FA_READ);
 	alt_puts("opened a file");
 	if (fr == FR_OK) {
-		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
+		f_read(&Fil, buffer, 149, &bw);	/*Read data from the file */
 		alt_puts("Read data from the file\n");
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
