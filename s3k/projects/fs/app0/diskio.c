@@ -69,13 +69,16 @@ DRESULT disk_read (
 		// translate the arguments here
 		if (disk_status(pdrv) & STA_NOINIT) return RES_NOTRDY;
 
+		void* buff2 = (void*)0x80020000;
+		BYTE* rbuff2 = (BYTE*)buff2;
+
 		struct buf buffer;
 		do {
 			buffer.blockno = sector;
 			memset(buffer.data, 0, sizeof(buffer.data));
 			virtio_disk_rw(&buffer, 0);
-			memcpy(buff, buffer.data, 512);
-			buff += 512;
+			memcpy(rbuff2, buffer.data, 512);
+			rbuff2 += 512;
 		} while (--count);
 		return RES_OK;
 	}

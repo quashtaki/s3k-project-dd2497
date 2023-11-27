@@ -65,6 +65,9 @@ void start_app1(uint64_t tmp) {
 
 int main(void)
 {
+	s3k_cap_delete(HART1_TIME);
+	s3k_cap_delete(HART2_TIME);
+	s3k_cap_delete(HART3_TIME);
 	uint64_t uart_addr = s3k_napot_encode(0x10000000, 0x2000);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
@@ -74,6 +77,7 @@ int main(void)
 
 	setup_app1(11);
 	start_app1(11);
+
 	
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
@@ -82,16 +86,6 @@ int main(void)
 	UINT bw;
 	FRESULT fr;
 	FIL Fil;			/* File object needed for each open file */
-	fr = f_open(&Fil, "newfile.txt", FA_WRITE | FA_CREATE_ALWAYS);	/* Create a file */
-	if (fr == FR_OK) {
-		f_write(&Fil, "It works!\r\n", 11, &bw);	/* Write data to the file */
-		fr = f_close(&Fil);							/* Close the file */
-		if (fr == FR_OK && bw == 11) {
-			alt_puts("File saved\n");
-		}
-	} else{
-		alt_puts("File not opened\n");
-	}
 
 	char buffer[1024];
 	fr = f_open(&Fil, "test.txt", FA_READ);
@@ -105,4 +99,9 @@ int main(void)
 	} else{
 		alt_puts("File not opened\n");
 	}
+
+	alt_puts("hello from app0");
+	s3k_mon_suspend(MONITOR, APP1_PID);
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+	s3k_mon_resume(MONITOR, APP1_PID);
 }

@@ -227,6 +227,7 @@ void
 virtio_disk_rw(struct buf *b, int write)
 {
   uint64 sector = b->blockno * (BSIZE / 512);
+  alt_puts("inside virtio_disk_rw");
 
   /* acquire(&disk.vdisk_lock); */
 
@@ -253,14 +254,14 @@ virtio_disk_rw(struct buf *b, int write)
   else
     buf0->type = VIRTIO_BLK_T_IN; // read the disk
   buf0->reserved = 0;
-  buf0->sector = sector;
+  buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
 
-  disk.desc[idx[0]].addr = (uint64) buf0;
+  disk.desc[idx[0]].addr = (uint64) buf0; // vad är detta?
   disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
-
-  disk.desc[idx[1]].addr = (uint64) b->data;
+  
+  disk.desc[idx[1]].addr = (uint64) b->data; // Detta är data som ska skrivas till minnesadressen
   disk.desc[idx[1]].len = BSIZE;
   if(write)
     disk.desc[idx[1]].flags = 0; // device reads b->data
@@ -300,6 +301,8 @@ virtio_disk_rw(struct buf *b, int write)
 
   disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
+
+  alt_puts("virtio_disk_rw done");
 
   /* release(&disk.vdisk_lock); */
 }
