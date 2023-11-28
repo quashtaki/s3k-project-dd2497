@@ -261,7 +261,7 @@ virtio_disk_rw(struct buf *b, int write)
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
   
-  disk.desc[idx[1]].addr = (uint64) b->data; // Detta är data som ska skrivas till minnesadressen
+  disk.desc[idx[1]].addr = (uint64) 0x0000000080012010;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
   if(write)
     disk.desc[idx[1]].flags = 0; // device reads b->data

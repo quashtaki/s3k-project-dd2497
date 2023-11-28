@@ -20,6 +20,8 @@
 
 #define APP_ADDRESS 0x80020000
 
+int TEST = 0;
+
 void setup_uart(uint64_t uart_idx)
 {
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
@@ -42,6 +44,8 @@ void setup_app1(uint64_t tmp)
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 0);
 	s3k_mon_pmp_load(MONITOR, APP1_PID, 0, 0);
 
+	// we give away cap s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 3);
+
 	// Derive a PMP capability for uart
 	s3k_cap_derive(UART_MEM, tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW));
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 1);
@@ -63,8 +67,22 @@ void start_app1(uint64_t tmp) {
 	s3k_mon_resume(MONITOR, APP1_PID);
 }
 
+// Function to convert a pointer to a hexadecimal string
+void ptr_to_hex_str(void *ptr, char *str) {
+    unsigned long addr = (unsigned long)ptr;
+    static const char hex_digits[] = "0123456789ABCDEF";
+    
+    str[0] = '0';
+    str[1] = 'x';
+    for (int i = sizeof(void *) * 2 + 1; i > 1; --i, addr >>= 4) {
+        str[i] = hex_digits[addr & 0xF];
+    }
+    str[sizeof(void *) * 2 + 2] = '\0';
+}
+
 int main(void)
-{
+{	
+	// address &TEST;
 	s3k_cap_delete(HART1_TIME);
 	s3k_cap_delete(HART2_TIME);
 	s3k_cap_delete(HART3_TIME);
@@ -75,8 +93,23 @@ int main(void)
 		;
 	s3k_sync();
 
-	setup_app1(11);
-	start_app1(11);
+	// setup_app1(11);
+	// start_app1(11);
+
+	TEST = 0;
+	char test[50];
+
+	alt_puts("hello from app0");
+	if (TEST == 0) {
+		alt_puts("TEST == 0");
+	} else
+	{
+		alt_puts("TEST != 0");	
+	}
+	
+
+	ptr_to_hex_str(&TEST, test);
+	alt_puts(test);
 
 	
 	FATFS FatFs;		/* FatFs work area needed for each volume */
@@ -86,6 +119,7 @@ int main(void)
 	UINT bw;
 	FRESULT fr;
 	FIL Fil;			/* File object needed for each open file */
+
 
 	char buffer[1024];
 	fr = f_open(&Fil, "test.txt", FA_READ);
@@ -100,8 +134,15 @@ int main(void)
 		alt_puts("File not opened\n");
 	}
 
-	alt_puts("hello from app0");
-	s3k_mon_suspend(MONITOR, APP1_PID);
-	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
-	s3k_mon_resume(MONITOR, APP1_PID);
+	if (TEST == 0) {
+		alt_puts("TEST == 0");
+	} else
+	{
+		alt_puts("TEST != 0");	
+	}
+
+	// alt_puts("hello from app0");
+	// s3k_mon_suspend(MONITOR, APP1_PID);
+	// s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+	// s3k_mon_resume(MONITOR, APP1_PID);
 }
