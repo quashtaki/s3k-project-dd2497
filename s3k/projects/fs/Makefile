@@ -7,7 +7,7 @@ export S3K_CONF_H :=${abspath s3k_conf.h}
 
 include ${ROOT}/common/plat/${PLATFORM}.mk
 
-APPS=app0 app1
+APPS=app0 app1 app2
 
 ELFS:=${patsubst %,${BUILD}/%.elf,kernel ${APPS}}
 
@@ -44,6 +44,11 @@ disk-image:
 	echo "hello" > tmp.txt
 	mcopy -i fs.img tmp.txt ::/test.txt
 	rm tmp.txt
+
+disk-image-binary:
+	qemu-img create fs.img 10M
+	mformat -i fs.img ::
+	mcopy -i fs.img ./build/qemu_virt/app2.bin ::/app2.bin
 
 disk-read:
 	mdir -i fs.img

@@ -19,7 +19,7 @@ ENV PATH="/s3k/riscv64-unknown-elf-toolchain/opt/riscv/bin:${PATH}"
 
 WORKDIR /s3k/projects/fs
 
-RUN make disk-image
-
 RUN make
+RUN make disk-image-binary
+
 CMD make qemu

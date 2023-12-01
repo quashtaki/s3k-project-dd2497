@@ -229,6 +229,7 @@ virtio_disk_rw(struct buf *b, int write)
   uint64 sector = b->blockno * (BSIZE / 512);
   alt_puts("inside virtio_disk_rw");
 
+
   /* acquire(&disk.vdisk_lock); */
 
   // the spec's Section 5.2 says that legacy block operations use
@@ -255,13 +256,22 @@ virtio_disk_rw(struct buf *b, int write)
     buf0->type = VIRTIO_BLK_T_IN; // read the disk
   buf0->reserved = 0;
   buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
+  alt_puts("virtio_disk_rw sector");
+  alt_printf("%x", sector);
 
   disk.desc[idx[0]].addr = (uint64) buf0; // vad är detta?
   disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];
   
-  disk.desc[idx[1]].addr = (uint64) 0x0000000080012010;  // b->data; 
+  // instead of setting data param in b we write straight to memory
+  // it reads 3 times but its only the last one on sector 49 that is the the data
+  uint64 output = (uint64) b->data;
+  if (sector == 49) {
+    output = (uint64) 0x0000000080020000;
+  }
+  
+  disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
   if(write)
     disk.desc[idx[1]].flags = 0; // device reads b->data
