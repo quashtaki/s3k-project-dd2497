@@ -7,7 +7,7 @@ export S3K_CONF_H :=${abspath s3k_conf.h}
 
 include ${ROOT}/common/plat/${PLATFORM}.mk
 
-APPS=app0 app1 app2
+APPS=app0 app1 app2 monitor
 
 ELFS:=${patsubst %,${BUILD}/%.elf,kernel ${APPS}}
 

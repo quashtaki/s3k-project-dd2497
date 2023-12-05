@@ -3,6 +3,5 @@
 
 int main(void)
 {
-	alt_puts("hello from app1");
-	alt_puts("bye from from app1");
+	alt_puts("Monitor started");
 }
