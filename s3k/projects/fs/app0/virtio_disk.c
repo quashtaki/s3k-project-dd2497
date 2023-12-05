@@ -228,7 +228,7 @@ void
 virtio_disk_rw(struct buf *b, int write)
 {
   uint64 sector = b->blockno * (BSIZE / 512);
-  alt_puts("inside virtio_disk_rw");
+  alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
 
 
   /* acquire(&disk.vdisk_lock); */
@@ -257,8 +257,7 @@ virtio_disk_rw(struct buf *b, int write)
     buf0->type = VIRTIO_BLK_T_IN; // read the disk
   buf0->reserved = 0;
   buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
-  alt_puts("virtio_disk_rw sector");
-  alt_printf("%x", sector);
+  alt_printf("VIRTIO_DISK: virtio_disk_rw sector %x\n", sector);
 
   disk.desc[idx[0]].addr = (uint64) buf0; // vad är detta?
   disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
@@ -275,7 +274,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   // HERE WE CHECK WITH MONITOR!
 
-  alt_puts("Checking with monitor...");
+  alt_puts("VIRTIO_DISK: Checking with monitor...");
   s3k_msg_t msg;
   memcpy(msg.data, &output, sizeof(output));
 
@@ -284,18 +283,19 @@ virtio_disk_rw(struct buf *b, int write)
   do {
 			reply = s3k_sock_sendrecv(13, &msg);
 			if (reply.err == S3K_ERR_TIMEOUT)
-				alt_puts("timeout");
+				alt_puts("VIRTIO_DISK: timeout");
 		} while (reply.err);
+  alt_printf("VIRTIO_DISK: ");
 	alt_puts((char *)reply.data);
   if (reply.data[0] == 0) {
-    alt_puts("Monitor denied access to memory");
+    alt_puts("VIRTIO_DISK: Monitor denied access to memory");
   } else {
-    alt_puts("Monitor allowed access to memory");
+    alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
   }
     
   // DECIDE IF ADD TO QUEUE OR NOT
 
-  alt_puts("Checked with monitor");
+  alt_puts("VIRTIO_DISK: Checked with monitor");
   
   disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
@@ -338,7 +338,7 @@ virtio_disk_rw(struct buf *b, int write)
   disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
 
-  alt_puts("virtio_disk_rw done");
+  alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 
   /* release(&disk.vdisk_lock); */
 }

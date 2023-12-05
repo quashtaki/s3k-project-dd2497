@@ -3,5 +3,5 @@
 
 int main(void)
 {
-	alt_puts("heheh we take over now");
+	alt_puts("APP2: heheh we take over now");
 }

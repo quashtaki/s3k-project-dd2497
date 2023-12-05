@@ -3,6 +3,6 @@
 
 int main(void)
 {
-	alt_puts("hello from app1");
-	alt_puts("bye from from app1");
+	alt_puts("APP1: hello from app1");
+	alt_puts("APP1: bye from from app1");
 }

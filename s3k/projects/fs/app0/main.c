@@ -45,7 +45,7 @@ void start_monitor(uint64_t tmp) {
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, MONITOR_PID, 2);
 
 	// print S3K_SLOT_CNT in hex
-	alt_printf("HART: %X\n", S3K_MIN_HART);
+	alt_printf("APP0: HART: %X\n", S3K_MIN_HART);
 
 	// Write start PC of app1 to PC
 	s3k_mon_reg_write(MONITOR, MONITOR_PID, S3K_REG_PC, MONITOR_ADDRESS);
@@ -107,7 +107,7 @@ int main(void)
 	s3k_sync();
 
 
-	alt_puts("starting monitor (Not the real one)");
+	alt_puts("APP0: starting monitor (Not the real one)");
 	setup_monitor(11);
 	setup_app1(12);
 	setup_socket(13, 14); // Socket is on 13
@@ -123,11 +123,11 @@ int main(void)
 	s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
 	// this removes our ability to edit its memory
 
-	alt_puts("hello from app0");
+	alt_puts("APP0: hello from app0");
 	
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
-	alt_puts("File system mounted");
+	alt_puts("APP0: File system mounted");
 
 	UINT bw;
 	FRESULT fr;
@@ -137,7 +137,7 @@ int main(void)
 	char buffer[1024];
 	fr = f_open(&Fil, "app2.bin", FA_READ);
 	if (fr == FR_OK) {
-		alt_puts("File opened\n");
+		alt_puts("APP0: File opened\n");
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
@@ -145,10 +145,10 @@ int main(void)
 			alt_puts(buffer);
 		}
 	} else{
-		alt_puts("File not opened\n");
+		alt_puts("APP0: File not opened\n");
 	}
 
-	// alt_puts("hello from app0");
+	// alt_puts("APP0: hello from app0");
 	s3k_mon_suspend(MONITOR, APP1_PID);
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
 	s3k_mon_resume(MONITOR, APP1_PID);
