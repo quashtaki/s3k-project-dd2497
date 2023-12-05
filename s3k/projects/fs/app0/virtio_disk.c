@@ -18,6 +18,7 @@
 #include <string.h>
 #include "altc/altio.h"
 #include "virtio_disk.h"
+#include "s3k/s3k.h"
 
 #define PGSIZE 4096
 #define PGSHIFT 12  // bits of offset within a page
@@ -270,6 +271,31 @@ virtio_disk_rw(struct buf *b, int write)
   if (sector == 49) {
     output = (uint64) 0x0000000080020000;
   }
+
+
+  // HERE WE CHECK WITH MONITOR!
+
+  alt_puts("Checking with monitor...");
+  s3k_msg_t msg;
+  memcpy(msg.data, &output, sizeof(output));
+
+  s3k_reply_t reply;
+	s3k_reg_write(S3K_REG_SERVTIME, 4500);
+  do {
+			reply = s3k_sock_sendrecv(13, &msg);
+			if (reply.err == S3K_ERR_TIMEOUT)
+				alt_puts("timeout");
+		} while (reply.err);
+	alt_puts((char *)reply.data);
+  if (reply.data[0] == 0) {
+    alt_puts("Monitor denied access to memory");
+  } else {
+    alt_puts("Monitor allowed access to memory");
+  }
+    
+  // DECIDE IF ADD TO QUEUE OR NOT
+
+  alt_puts("Checked with monitor");
   
   disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;

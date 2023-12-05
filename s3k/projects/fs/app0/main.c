@@ -83,6 +83,17 @@ void start_app1(uint64_t tmp) {
 	s3k_mon_resume(MONITOR, APP1_PID);
 }
 
+void setup_socket(uint64_t socket, uint64_t tmp)
+{
+	s3k_cap_derive(CHANNEL, socket,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA, 0));
+	s3k_cap_derive(socket, tmp,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, MONITOR_PID, 3);
+}
+
 int main(void)
 {	
 	s3k_cap_delete(HART1_TIME);
@@ -99,6 +110,7 @@ int main(void)
 	alt_puts("starting monitor (Not the real one)");
 	setup_monitor(11);
 	setup_app1(12);
+	setup_socket(13, 14); // Socket is on 13
 
 	// Order of starting these matters 💀
 	start_monitor(11);
@@ -108,36 +120,36 @@ int main(void)
 
 	
 
-	// s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
-	// // this removes our ability to edit its memory
+	s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
+	// this removes our ability to edit its memory
+
+	alt_puts("hello from app0");
+	
+	FATFS FatFs;		/* FatFs work area needed for each volume */
+	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
+	alt_puts("File system mounted");
+
+	UINT bw;
+	FRESULT fr;
+	FIL Fil;			/* File object needed for each open file */
+
+
+	char buffer[1024];
+	fr = f_open(&Fil, "app2.bin", FA_READ);
+	if (fr == FR_OK) {
+		alt_puts("File opened\n");
+		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
+		fr = f_close(&Fil);							/* Close the file */
+		if (fr == FR_OK) {
+			buffer[bw] = '\0';
+			alt_puts(buffer);
+		}
+	} else{
+		alt_puts("File not opened\n");
+	}
 
 	// alt_puts("hello from app0");
-	
-	// FATFS FatFs;		/* FatFs work area needed for each volume */
-	// f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
-	// alt_puts("File system mounted");
-
-	// UINT bw;
-	// FRESULT fr;
-	// FIL Fil;			/* File object needed for each open file */
-
-
-	// char buffer[1024];
-	// fr = f_open(&Fil, "app2.bin", FA_READ);
-	// if (fr == FR_OK) {
-	// 	alt_puts("File opened\n");
-	// 	f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
-	// 	fr = f_close(&Fil);							/* Close the file */
-	// 	if (fr == FR_OK) {
-	// 		buffer[bw] = '\0';
-	// 		alt_puts(buffer);
-	// 	}
-	// } else{
-	// 	alt_puts("File not opened\n");
-	// }
-
-	// // alt_puts("hello from app0");
-	// s3k_mon_suspend(MONITOR, APP1_PID);
-	// s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
-	// s3k_mon_resume(MONITOR, APP1_PID);
+	s3k_mon_suspend(MONITOR, APP1_PID);
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+	s3k_mon_resume(MONITOR, APP1_PID);
 }
