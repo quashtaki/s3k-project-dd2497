@@ -276,17 +276,20 @@ virtio_disk_rw(struct buf *b, int write)
 
   alt_puts("VIRTIO_DISK: Checking with monitor...");
   s3k_msg_t msg;
-  memcpy(msg.data, &output, sizeof(output));
+      memcpy(msg.data, &output, sizeof(output));
 
-  s3k_reply_t reply;
-	s3k_reg_write(S3K_REG_SERVTIME, 4500);
+      s3k_reply_t reply;
+      s3k_reg_write(S3K_REG_SERVTIME, 4500);
+  
   do {
-			reply = s3k_sock_sendrecv(13, &msg);
+			reply = s3k_sock_sendrecv(14, &msg); // 13, 14 is client
+      
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("VIRTIO_DISK: timeout");
 		} while (reply.err);
   alt_printf("VIRTIO_DISK: ");
 	alt_puts((char *)reply.data);
+
   if (reply.data[0] == 0) {
     alt_puts("VIRTIO_DISK: Monitor denied access to memory");
   } else {

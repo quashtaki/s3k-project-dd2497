@@ -1,4 +1,5 @@
 #include "altc/altio.h"
+#include "altc/string.h"
 #include "s3k/s3k.h"
 
 int main(void)
@@ -7,12 +8,14 @@ int main(void)
 
 	s3k_msg_t msg;
 	s3k_reply_t reply;
-	msg.data[0] = 1; // true or false
+	msg.data[0] = 0; // true or false
 	
 	while (1) {
 		alt_puts("MONITOR: waiting for req");
-		do {
-			reply = s3k_sock_recv(3,0);
+
+		do {		
+			reply = s3k_sock_recv(4,0);
+
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
@@ -20,9 +23,9 @@ int main(void)
 		// reply data is hex
 		alt_printf("MONITOR: data: %X\n", reply.data);
 
-		// check if address is ok in cap
+		// check if address is ok in cap - TODO
 
-		s3k_err_t err = s3k_sock_send(3, &msg);
+		s3k_err_t err = s3k_sock_send(4, &msg);
 		if (err == S3K_ERR_TIMEOUT)
 			alt_puts("MONITOR: timeout");
 		alt_puts("MONITOR: sent");

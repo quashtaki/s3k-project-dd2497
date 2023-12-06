@@ -91,7 +91,7 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 	s3k_cap_derive(socket, tmp,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
 				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
-	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, MONITOR_PID, 3);
+	s3k_mon_cap_move(MONITOR, APP0_PID, socket, MONITOR_PID, 4); // give monitor server
 }
 
 int main(void)
@@ -110,7 +110,7 @@ int main(void)
 	alt_puts("APP0: starting monitor (Not the real one)");
 	setup_monitor(11);
 	setup_app1(12);
-	setup_socket(13, 14); // Socket is on 13
+	setup_socket(13, 14); // Socket is on 13 - and moved to 4
 
 	// Order of starting these matters 💀
 	start_monitor(11);
