@@ -112,16 +112,35 @@ int main(void)
 	setup_app1(12);
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
 
+	// monitor for app0, app1, monitor
+	s3k_cap_derive(MONITOR, 17, s3k_mk_monitor(0, 2));
+	s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
+
 	// Order of starting these matters 💀
 	start_monitor(11);
 	start_app1(12);
 
 
-
+	
 	
 
-	s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
+	s3k_mon_cap_move(MONITOR, APP0_PID, 12, APP1_PID, 3); // move out capability to app1
 	// this removes our ability to edit its memory
+
+	// Move out MONITOR CAP to monitor app
+
+	alt_puts("APP0: gave mon cap to monitor");
+
+	// 	void setup_app_monitoring(void)
+	// {
+	// 	// Monitor for boot, monitor, crypto, uart
+	// 	s3k_cap_derive(MONITOR_CIDX, 0x10, s3k_mk_monitor(0, 4));
+	// 	// Monitor for app0, app1
+	// 	s3k_cap_derive(MONITOR_CIDX, 0x11, s3k_mk_monitor(4, 6));
+	// 	s3k_cap_delete(MONITOR_CIDX);
+	// 	s3k_cap_move(0x10, MONITOR_CIDX);
+	// 	mon_grant_cap(MONITOR_PID, 0x11, 0xa);
+	// }
 
 	alt_puts("APP0: hello from app0");
 	

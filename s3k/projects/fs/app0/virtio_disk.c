@@ -284,11 +284,10 @@ virtio_disk_rw(struct buf *b, int write)
   do {
 			reply = s3k_sock_sendrecv(14, &msg); // 13, 14 is client
       
+      alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("VIRTIO_DISK: timeout");
 		} while (reply.err);
-  alt_printf("VIRTIO_DISK: ");
-	alt_puts((char *)reply.data);
 
   if (reply.data[0] == 0) {
     alt_puts("VIRTIO_DISK: Monitor denied access to memory");
