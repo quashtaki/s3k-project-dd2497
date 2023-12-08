@@ -224,9 +224,15 @@ alloc3_desc(int *idx)
   return 0;
 }
 
+#define SHARED_MEM 0x80050000
+#define SHARED_MEM_LEN 0x10000
+
 void
 virtio_disk_rw(struct buf *b, int write)
 {
+
+  
+
   uint64 sector = b->blockno * (BSIZE / 512);
   alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
 
@@ -274,22 +280,40 @@ virtio_disk_rw(struct buf *b, int write)
 
   // HERE WE CHECK WITH MONITOR!
 
+  char *shared_status = (char*) SHARED_MEM;
+	char *shared_result = (char*) SHARED_MEM + 1;
+
   alt_puts("VIRTIO_DISK: Checking with monitor...");
   s3k_msg_t msg;
-      memcpy(msg.data, &output, sizeof(output));
+  memcpy(msg.data, &output, sizeof(output));
 
-      s3k_reply_t reply;
-      s3k_reg_write(S3K_REG_SERVTIME, 4500);
+  s3k_reply_t reply;
+  s3k_reg_write(S3K_REG_SERVTIME, 4500);
   
-  do {
-			reply = s3k_sock_sendrecv(14, &msg); // 13, 14 is client
+  // do {
+	// 		reply = s3k_sock_sendrecv(14, &msg); // 13, 14 is client
       
-      alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
-			if (reply.err == S3K_ERR_TIMEOUT)
-				alt_puts("VIRTIO_DISK: timeout");
-		} while (reply.err);
+  //     alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
+	// 		if (reply.err == S3K_ERR_TIMEOUT)
+	// 			alt_puts("VIRTIO_DISK: timeout");
+	// 	} while (reply.err);
 
-  if (reply.data[0] == 0) {
+
+  *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
+  s3k_err_t err;
+   do {
+			err = s3k_sock_send(14, &msg);
+      alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
+		} while (err != 0 && *shared_status == 0);
+  alt_puts("VIRTIO_DISK: Sent to monitor");
+  while (*shared_status == 0) {
+    alt_puts("VIRTIO_DISK: Waiting for monitor");
+    alt_printf("VIRTIO_DISK: shared_status: %X\n", *shared_status);
+  }
+  alt_puts("VIRTIO_DISK: Monitor replied");
+  int result = *shared_result; // this one should only be read ofc
+
+  if (result == 0) {
     alt_puts("VIRTIO_DISK: Monitor denied access to memory");
   } else {
     alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
