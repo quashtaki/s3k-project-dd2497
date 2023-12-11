@@ -52,6 +52,29 @@ void s3k_print_cap(s3k_cap_t *cap) {
 	}
 }
 
+bool inside_memory(s3k_cap_t *cap, uint64_t addr) {
+	if ((*cap).type != S3K_CAPTY_MEMORY)
+		return false;
+	uint64_t bgn = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.bgn);
+	uint64_t end = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.end);
+	alt_printf("MONITOR: inside_memory: addr:%X bgn:%X end:%X\n", addr, bgn, end);
+	return (addr >= bgn && addr < end);
+}
+
+bool inside_pmp(s3k_cap_t *cap, uint64_t addr) {
+	if ((*cap).type != S3K_CAPTY_PMP)
+		return false;
+	uint64_t bgn;
+	uint64_t size;
+	s3k_napot_decode((*cap).pmp.addr, &bgn, &size);
+	uint64_t end = bgn + size;
+	int priv = (*cap).pmp.rwx;
+	// if not high enough privileges
+	if (priv != S3K_MEM_W && priv != S3K_MEM_RW && priv != S3K_MEM_RWX ) {
+		return false;
+	}
+	return (addr >= bgn && addr < end);
+}
 
 int main(void)
 {
@@ -60,6 +83,8 @@ int main(void)
 	s3k_msg_t msg;
 	s3k_reply_t reply;
 	msg.data[0] = 1; // true or false
+
+	
 
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
@@ -78,23 +103,26 @@ int main(void)
 		*shared_status = 0;
 		s3k_mon_suspend(MONITOR, APP0_PID);
 		// reply data is hex
-		alt_printf("MONITOR: data: %X\n", reply.data);
+		alt_printf("MONITOR: data: %X\n", *reply.data);
 		
 		// we want to check if address is within app0 capabilities
 	
 
 		alt_puts("MONITOR: CHECKING CAPS");
-		for (int i = 0; i < 15; i++) {
+		bool result = false;
+		for (int i = 0; i < 32; i++) {
 			s3k_cap_t cap;
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
-			alt_printf("MONITOR: cap: %X\n", cap.type);
-			alt_printf("MONITOR: err: %X\n", err);
+			result = inside_pmp(&cap,(uint64_t) *reply.data);
+			if (result) {
+				break;
+			}
 		}
 
 		s3k_mon_resume(MONITOR, APP0_PID);
 		alt_puts("MONITOR: resuming");
-		*shared_result = 1;
-		*shared_status = 1;
+		*shared_result = result; // antingen 1 eller 0 beroende på om ok
+		*shared_status = 1; // always 1 if success
 		alt_puts("MONITOR: sent");
 	}
 }

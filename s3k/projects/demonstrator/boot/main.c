@@ -137,9 +137,9 @@ void setup_app_channels(void)
 void setup_app_monitoring(void)
 {
 	// Monitor for boot, monitor, crypto, uart
-	s3k_cap_derive(MONITOR_CIDX, 0x10, s3k_mk_monitor(0, 4));
+	s3k_cap_derive(MONITOR_CIDX, 0x10, s3k_mk_monitor(0, 4)); // 0 1 2 3
 	// Monitor for app0, app1
-	s3k_cap_derive(MONITOR_CIDX, 0x11, s3k_mk_monitor(4, 6));
+	s3k_cap_derive(MONITOR_CIDX, 0x11, s3k_mk_monitor(4, 6)); // 4 5
 	s3k_cap_delete(MONITOR_CIDX);
 	s3k_cap_move(0x10, MONITOR_CIDX);
 	mon_grant_cap(MONITOR_PID, 0x11, 0xa);

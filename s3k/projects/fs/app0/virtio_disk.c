@@ -277,6 +277,8 @@ virtio_disk_rw(struct buf *b, int write)
     output = (uint64) 0x0000000080020000;
   }
 
+  alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
+
 
   // HERE WE CHECK WITH MONITOR!
 
@@ -287,34 +289,26 @@ virtio_disk_rw(struct buf *b, int write)
   s3k_msg_t msg;
   memcpy(msg.data, &output, sizeof(output));
 
+
   s3k_reply_t reply;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
-  
-  // do {
-	// 		reply = s3k_sock_sendrecv(14, &msg); // 13, 14 is client
-      
-  //     alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
-	// 		if (reply.err == S3K_ERR_TIMEOUT)
-	// 			alt_puts("VIRTIO_DISK: timeout");
-	// 	} while (reply.err);
-
 
   *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
   s3k_err_t err;
    do {
 			err = s3k_sock_send(14, &msg);
-      alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
+      //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
 		} while (err != 0 && *shared_status == 0);
   alt_puts("VIRTIO_DISK: Sent to monitor");
-  while (*shared_status == 0) {
-    alt_puts("VIRTIO_DISK: Waiting for monitor");
-    alt_printf("VIRTIO_DISK: shared_status: %X\n", *shared_status);
+  while (*shared_status == 0) { // why is this required roberto please help 🤯
+    alt_printf("Value: %X", *shared_status);
   }
   alt_puts("VIRTIO_DISK: Monitor replied");
   int result = *shared_result; // this one should only be read ofc
 
   if (result == 0) {
     alt_puts("VIRTIO_DISK: Monitor denied access to memory");
+    return;
   } else {
     alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
   }

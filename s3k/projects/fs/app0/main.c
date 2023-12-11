@@ -7,6 +7,8 @@
 #define APP1_PID 1
 #define MONITOR_PID 2
 
+
+
 // See plat_conf.h
 #define BOOT_PMP 0
 #define RAM_MEM 1
@@ -44,7 +46,7 @@ void setup_monitor(uint64_t tmp)
 void start_monitor(uint64_t tmp) {
 	// derive a time slice capability
 	s3k_cap_derive(HART0_TIME, tmp,
-		       s3k_mk_time(S3K_MIN_HART, 0, 8)); // 0-5
+		       s3k_mk_time(S3K_MIN_HART, 8, 16));
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, MONITOR_PID, 3);
 
 	// Write start PC of app1 to PC
@@ -73,7 +75,7 @@ void setup_app1(uint64_t tmp)
 void start_app1(uint64_t tmp) {
 	// derive a time slice capability
 	s3k_cap_derive(HART0_TIME, tmp,
-		       s3k_mk_time(S3K_MIN_HART, 8, 16));
+		       s3k_mk_time(S3K_MIN_HART, 0, 8));
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 2);
 
 	// Write start PC of app1 to PC
@@ -115,6 +117,49 @@ void setup_shared(uint64_t tmp)
 	s3k_sync_mem();
 }
 
+#define TAG_BLOCK_TO_ADDR(tag, block) ( \
+					(((uint64_t) tag) << S3K_MAX_BLOCK_SIZE) + \
+					(((uint64_t) block) << S3K_MIN_BLOCK_SIZE) \
+					)
+
+void s3k_print_cap(s3k_cap_t *cap) {
+	if (!cap)
+		alt_printf("Capability is NULL\n");
+	switch ((*cap).type) {
+	case S3K_CAPTY_NONE:
+		alt_printf("No Capability\n");
+		break;
+	case S3K_CAPTY_TIME:
+		alt_printf("Time hart:%X bgn:%X mrk:%X end:%Z\n",
+				   (*cap).time.hart, (*cap).time.bgn, (*cap).time.mrk, (*cap).time.end);
+		break;
+	case S3K_CAPTY_MEMORY:
+		alt_printf("Memory rwx:%X lock:%X bgn:%X mrk:%X end:%X\n",
+				   (*cap).mem.rwx, (*cap).mem.lck,
+				   TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.bgn),
+				   TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.mrk),
+				   TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.end)
+				   );
+		break;
+	case S3K_CAPTY_PMP:
+		alt_printf("PMP rwx:%X used:%X index:%X address:%Z\n",
+				   (*cap).pmp.rwx, (*cap).pmp.used, (*cap).pmp.slot, (*cap).pmp.addr);
+		break;
+	case S3K_CAPTY_MONITOR:
+		alt_printf("Monitor  bgn:%X mrk:%X end:%X\n",
+				    (*cap).mon.bgn, (*cap).mon.mrk, (*cap).mon.end);
+		break;
+	case S3K_CAPTY_CHANNEL:
+		alt_printf("Channel  bgn:%X mrk:%X end:%X\n",
+				    (*cap).chan.bgn, (*cap).chan.mrk, (*cap).chan.end);
+		break;
+	case S3K_CAPTY_SOCKET:
+		alt_printf("Socket  mode:%X perm:%X channel:%X tag:%X\n",
+				    (*cap).sock.mode, (*cap).sock.perm, (*cap).sock.chan, (*cap).sock.tag);
+		break;
+	}
+}
+
 int main(void)
 {	
 	s3k_cap_delete(HART1_TIME);
@@ -127,26 +172,38 @@ int main(void)
 		;
 	s3k_sync();
 
-	setup_monitor(11);
-	setup_app1(12);
+	setup_app1(11);	
+	setup_monitor(12);
+	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
-	setup_shared(15); // doesnt work
+	setup_shared(15);
 
-	s3k_sync();
-
-	// monitor for app0, app1, monitor
-	s3k_cap_derive(MONITOR, 17, s3k_mk_monitor(0, 2));
-	s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
-
+		// monitor for app0, app1, monitor
+	
 	alt_puts("APP0: gave mon cap to monitor");
 
 	// Order of starting these matters 💀
-	start_monitor(11);
-	start_app1(12);
+	
+	start_app1(11);
 
-	s3k_mon_cap_move(MONITOR, APP0_PID, 12, APP1_PID, 3); // move out capability to app1
-	// this removes our ability to edit its memory
+	s3k_cap_derive(MONITOR, 17, s3k_mk_monitor(0, 2));
+	s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
 
+
+	s3k_cap_t cap;
+	s3k_err_t err = s3k_cap_read(MONITOR, &cap);
+	alt_printf("APP0: monitor cap read result %X\n", err);
+	s3k_print_cap(&cap);
+
+	start_monitor(12);
+
+	//s3k_mon_cap_move(MONITOR, APP0_PID, 12, APP1_PID, 3); // this does nothing
+	// we dont have cap to write to app1 memory, so its chillll
+
+	// char *app_address = (char *)APP_ADDRESS;
+	// *app_address = 0;
+
+	// is this legal? NO
 
 	alt_puts("APP0: hello from app0");
 	
@@ -173,8 +230,16 @@ int main(void)
 		alt_puts("APP0: File not opened\n");
 	}
 
-	// alt_puts("APP0: hello from app0");
-	s3k_mon_suspend(MONITOR, APP1_PID);
-	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
-	s3k_mon_resume(MONITOR, APP1_PID);
+	err = s3k_cap_read(MONITOR, &cap);
+	alt_printf("APP0: monitor cap read result %X\n", err);
+	s3k_print_cap(&cap);
+	
+	alt_puts("APP0: files read and attack executed");
+	s3k_err_t ee1 = s3k_mon_suspend(MONITOR, APP1_PID);
+	alt_printf("APP0: suspend result %X\n", ee1);
+	s3k_err_t ee2 = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+	alt_printf("APP0: write result %X\n", ee2);
+	s3k_err_t ee3 = s3k_mon_resume(MONITOR, APP1_PID);
+	alt_printf("APP0: resume result %X\n", ee3);
+	alt_puts("APP0: done");
 }
