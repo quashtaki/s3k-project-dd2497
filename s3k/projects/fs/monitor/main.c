@@ -77,9 +77,6 @@ int main(void)
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
 
-	setup_app1(12);
-	start_app1(12);
-
 	while (1) {
 		alt_puts("MONITOR: waiting for req");
 
