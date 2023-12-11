@@ -85,12 +85,13 @@ void start_app1(uint64_t tmp) {
 
 void setup_socket(uint64_t socket, uint64_t tmp)
 {
+	// client can send capabilities
 	s3k_cap_derive(CHANNEL, socket,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
-				     S3K_IPC_SDATA | S3K_IPC_CDATA, 0));
+				     S3K_IPC_SDATA | S3K_IPC_CDATA | S3K_IPC_CCAP , 0));
 	s3k_cap_derive(socket, tmp,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
-				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
+				     S3K_IPC_SDATA | S3K_IPC_CDATA | S3K_IPC_CCAP , 1));
 	s3k_mon_cap_move(MONITOR, APP0_PID, socket, MONITOR_PID, 4); // give monitor server
 }
 
@@ -146,7 +147,6 @@ int main(void)
 
 	s3k_mon_cap_move(MONITOR, APP0_PID, 12, APP1_PID, 3); // move out capability to app1
 	// this removes our ability to edit its memory
-
 
 	alt_puts("APP0: hello from app0");
 	

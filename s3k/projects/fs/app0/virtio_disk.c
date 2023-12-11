@@ -226,11 +226,11 @@ alloc3_desc(int *idx)
 
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
-
+int is_init = -2;
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-
+is_init += 1;
   
 
   uint64 sector = b->blockno * (BSIZE / 512);
@@ -272,20 +272,24 @@ virtio_disk_rw(struct buf *b, int write)
   
   // instead of setting data param in b we write straight to memory
   // it reads 3 times but its only the last one on sector 49 that is the the data
-  uint64 output = (uint64) b->data;
+  uint64_t output = (uint64) b->data;
   if (sector == 49) {
-    output = (uint64) 0x0000000080020000;
+    output = (uint64_t) 0x0000000080020000;
   }
 
-
+  if (is_init > 0) {
   // HERE WE CHECK WITH MONITOR!
 
   char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
-
+  uint64_t pi = s3k_get_pid();
   alt_puts("VIRTIO_DISK: Checking with monitor...");
   s3k_msg_t msg;
   memcpy(msg.data, &output, sizeof(output));
+  
+  // SEND CAP OVER IPC INSTEAD OF HARDCODE MONITOR
+  // msg.send_cap = 1;
+  // msg.cap_idx = 1;
 
   s3k_reply_t reply;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
@@ -301,9 +305,14 @@ virtio_disk_rw(struct buf *b, int write)
 
   *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
   s3k_err_t err;
+  int i = 0;
    do {
 			err = s3k_sock_send(14, &msg);
-      alt_printf("VIRTIO_DISK: reply.err: %X\n", reply.err);
+      alt_printf("%X - %X  VIRTIO_DISK: reply.err: %X\n", is_init, *shared_status, reply.err);
+      // if (err != 0) alt_puts("ERR != 0");
+      // if (*shared_status == 0) alt_printf("shared_status = 0 %X\n", reply.err);
+      // i++;
+      // if (i == 100) break;
 		} while (err != 0 && *shared_status == 0);
   alt_puts("VIRTIO_DISK: Sent to monitor");
   while (*shared_status == 0) {
@@ -322,7 +331,7 @@ virtio_disk_rw(struct buf *b, int write)
   // DECIDE IF ADD TO QUEUE OR NOT
 
   alt_puts("VIRTIO_DISK: Checked with monitor");
-  
+  }
   disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
   if(write)
