@@ -282,7 +282,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   // HERE WE CHECK WITH MONITOR!
 
-  char *shared_status = (char*) SHARED_MEM;
+  volatile char *shared_status = (char*) SHARED_MEM; // this is important bc it optimizes otherwise
 	char *shared_result = (char*) SHARED_MEM + 1;
 
   alt_puts("VIRTIO_DISK: Checking with monitor...");
@@ -300,9 +300,7 @@ virtio_disk_rw(struct buf *b, int write)
       //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
 		} while (err != 0 && *shared_status == 0);
   alt_puts("VIRTIO_DISK: Sent to monitor");
-  while (*shared_status == 0) { // why is this required roberto please help 🤯
-    alt_printf("Value: %X", *shared_status);
-  }
+  while (*shared_status == 0) {}
   alt_puts("VIRTIO_DISK: Monitor replied");
   int result = *shared_result; // this one should only be read ofc
 
