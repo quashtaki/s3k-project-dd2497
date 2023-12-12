@@ -101,7 +101,7 @@ int main(void)
 		alt_puts("MONITOR: received");
 		// suspend instantly
 		*shared_status = 0;
-		s3k_mon_suspend(MONITOR, APP0_PID);
+		// s3k_mon_suspend(MONITOR, APP0_PID);
 		// reply data is hex
 		alt_printf("MONITOR: data: %X\n", *reply.data);
 		

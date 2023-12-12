@@ -1,4 +1,5 @@
 #include "s3k/s3k.h"
+#include "altc/altio.h"
 
 typedef union {
 	struct {
@@ -437,6 +438,23 @@ s3k_err_t s3k_cap_delete(s3k_cidx_t idx)
 
 s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 {
+	alt_puts("KERNEL: START REVOKE");
+	alt_printf("KERNEL: pid %X\n", s3k_get_pid());
+	char* temp = "test";
+	s3k_msg_t msg;
+	// msg.send_cap = 1;
+	// msg.cap_idx = idx;
+  memcpy(msg.data, &temp, 5);
+
+	s3k_reply_t reply;
+  s3k_reg_write(S3K_REG_SERVTIME, 4500);
+
+	s3k_err_t err_ipc;
+   do {
+			err_ipc = s3k_sock_send(14, &msg);
+		} while (err_ipc != 0);
+  alt_puts("KERNEL: Sent to monitor");
+
 	s3k_err_t err;
 	do {
 		err = s3k_try_cap_revoke(idx);

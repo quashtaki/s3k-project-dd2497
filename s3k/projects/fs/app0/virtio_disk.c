@@ -227,14 +227,16 @@ alloc3_desc(int *idx)
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
 
+int is_init = -2;
+
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-
+is_init++;
   
 
   uint64 sector = b->blockno * (BSIZE / 512);
-  alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
+  // alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
 
 
   /* acquire(&disk.vdisk_lock); */
@@ -263,7 +265,7 @@ virtio_disk_rw(struct buf *b, int write)
     buf0->type = VIRTIO_BLK_T_IN; // read the disk
   buf0->reserved = 0;
   buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
-  alt_printf("VIRTIO_DISK: virtio_disk_rw sector %x\n", sector);
+  // alt_printf("VIRTIO_DISK: virtio_disk_rw sector %x\n", sector);
 
   disk.desc[idx[0]].addr = (uint64) buf0; // vad är detta?
   disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
@@ -277,44 +279,54 @@ virtio_disk_rw(struct buf *b, int write)
     output = (uint64) 0x0000000080020000;
   }
 
-  alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
+  // alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
 
-
+  if (is_init > 0) {
   // HERE WE CHECK WITH MONITOR!
 
   volatile char *shared_status = (char*) SHARED_MEM; // this is important bc it optimizes otherwise
 	char *shared_result = (char*) SHARED_MEM + 1;
 
-  alt_puts("VIRTIO_DISK: Checking with monitor...");
+  alt_puts("VIRTIO_DISK: Trying to read from drivers memory...");
   s3k_msg_t msg;
   memcpy(msg.data, &output, sizeof(output));
+  alt_printf("VIRTIO_DISK: RUN NUMBER %X\n", is_init);
 
-
-  s3k_reply_t reply;
-  s3k_reg_write(S3K_REG_SERVTIME, 4500);
-
-  *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
-  s3k_err_t err;
-   do {
-			err = s3k_sock_send(14, &msg);
-      //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
-		} while (err != 0 && *shared_status == 0);
-  alt_puts("VIRTIO_DISK: Sent to monitor");
-  while (*shared_status == 0) {}
-  alt_puts("VIRTIO_DISK: Monitor replied");
-  int result = *shared_result; // this one should only be read ofc
-
-  if (result == 0) {
-    alt_puts("VIRTIO_DISK: Monitor denied access to memory");
-    return;
-  } else {
-    alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
+  char temp[12];
+  char* temp_str;
+  temp_str = 0x80060000;
+  for (int i = 0; i < 12; i++) {
+    temp[i] = *(temp_str + i);
   }
+
+  alt_printf("VIRTIO_DISK: READ FROM DRIVER: %s\n", temp);
+
+  // s3k_reply_t reply;
+  // s3k_reg_write(S3K_REG_SERVTIME, 4500);
+
+  // *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
+  // s3k_err_t err;
+  //  do {
+	// 		err = s3k_sock_send(14, &msg);
+  //     //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
+	// 	} while (err != 0 && *shared_status == 0);
+  // alt_puts("VIRTIO_DISK: Sent to monitor");
+  // while (*shared_status == 0) {}
+  // alt_puts("VIRTIO_DISK: Monitor replied");
+  // int result = *shared_result; // this one should only be read ofc
+
+  // if (result == 0) {
+  //   alt_puts("VIRTIO_DISK: Monitor denied access to memory");
+  //   return;
+  // } else {
+  //   alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
+  // }
     
   // DECIDE IF ADD TO QUEUE OR NOT
 
-  alt_puts("VIRTIO_DISK: Checked with monitor");
-  
+  // alt_puts("VIRTIO_DISK: Checked with monitor");
+  }
+
   disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
   if(write)
@@ -356,7 +368,7 @@ virtio_disk_rw(struct buf *b, int write)
   disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
 
-  alt_puts("VIRTIO_DISK: virtio_disk_rw done");
+  // alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 
   /* release(&disk.vdisk_lock); */
 }
