@@ -3,11 +3,17 @@
 #include "s3k/s3k.h"
 
 #define APP0_PID 0
+#define APP1_PID 1
 
 #define MONITOR 8
 
+#define DRIVER_ADDRESS 0x80010000
+#define APP_ADDRESS 0x80020000
+
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
+
+int DO_REVOKE = 0;
 
 #define TAG_BLOCK_TO_ADDR(tag, block) ( \
 					(((uint64_t) tag) << S3K_MAX_BLOCK_SIZE) + \
@@ -84,45 +90,49 @@ int main(void)
 	s3k_reply_t reply;
 	msg.data[0] = 1; // true or false
 
-	
-
-	char *shared_status = (char*) SHARED_MEM;
-	char *shared_result = (char*) SHARED_MEM + 1;
-
 	while (1) {
 		alt_puts("MONITOR: waiting for req");
 
 		do {		
 			reply = s3k_sock_recv(4,0);
-
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
 		alt_puts("MONITOR: received");
-		// suspend instantly
-		*shared_status = 0;
-		// s3k_mon_suspend(MONITOR, APP0_PID);
-		// reply data is hex
-		alt_printf("MONITOR: data: %X\n", *reply.data);
-		
-		// we want to check if address is within app0 capabilities
-	
 
-		alt_puts("MONITOR: CHECKING CAPS");
-		bool result = false;
-		for (int i = 0; i < 32; i++) {
-			s3k_cap_t cap;
-			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
-			result = inside_pmp(&cap,(uint64_t) *reply.data);
-			if (result) {
-				break;
+		alt_printf("MONITOR: data: %X\n", *reply.data);
+
+		// from App1 to check if it's time for revocation (concurrency, allow driver to read for illustration purposes)
+		if (reply.data[0] == 4 && reply.data[1] == 4 && reply.data[2] == 4 && reply.data[3] == 4) {
+			alt_puts("MONITOR: FROM APP1 TO MONNI");
+			s3k_msg_t msg_app1;
+			s3k_err_t err_app1;
+			msg_app1.data[0] = DO_REVOKE;
+			msg_app1.data[1] = DO_REVOKE;
+			msg_app1.data[2] = DO_REVOKE;
+			msg_app1.data[3] = DO_REVOKE;
+			do {
+			err_app1 = s3k_sock_send(4, &msg_app1);
+		} while (err_app1 != 0);
+		}
+
+		// this particular data message is used to give app1 driver memory and trigger its revocation of said memory
+		if (reply.data[0] == 7 && reply.data[1] == 7 && reply.data[2] == 7 && reply.data[3] == 7) {
+			alt_puts("MONITOR: APP0 TRIGGER MOVING OF CAPABILITY");
+			DO_REVOKE = 1;
+
+			s3k_err_t ee10 = s3k_mon_suspend(MONITOR, APP0_PID);
+			s3k_err_t ee1 = s3k_mon_suspend(MONITOR, APP1_PID);
+			s3k_err_t ee2 = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
+			s3k_err_t ee4 = s3k_mon_cap_move(MONITOR, APP0_PID, 15, APP1_PID, 15);
+			s3k_err_t ee30 = s3k_mon_resume(MONITOR, APP0_PID);
+			s3k_err_t ee3 = s3k_mon_resume(MONITOR, APP1_PID);
+
+			if (!ee10 && !ee1 && !ee2 && !ee4 && !ee30 && !ee3) {
+				alt_puts("MONITOR: Driver memory moved to APP1");
 			}
 		}
 
-		s3k_mon_resume(MONITOR, APP0_PID);
-		alt_puts("MONITOR: resuming");
-		*shared_result = result; // antingen 1 eller 0 beroende på om ok
-		*shared_status = 1; // always 1 if success
 		alt_puts("MONITOR: sent");
 	}
 }

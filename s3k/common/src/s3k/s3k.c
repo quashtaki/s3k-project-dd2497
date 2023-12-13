@@ -435,16 +435,27 @@ s3k_err_t s3k_cap_delete(s3k_cidx_t idx)
 	} while (err == S3K_ERR_PREEMPTED);
 	return err;
 }
-
+#define TAG_BLOCK_TO_ADDR(tag, block) ( \
+					(((uint64_t) tag) << S3K_MAX_BLOCK_SIZE) + \
+					(((uint64_t) block) << S3K_MIN_BLOCK_SIZE) \
+					)
 s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 {
 	alt_puts("KERNEL: START REVOKE");
+	alt_puts("SHIT");
+	alt_printf("REVOKE INDEX: %X\n", idx);
 	alt_printf("KERNEL: pid %X\n", s3k_get_pid());
 	char* temp = "test";
 	s3k_msg_t msg;
-	// msg.send_cap = 1;
-	// msg.cap_idx = idx;
-  memcpy(msg.data, &temp, 5);
+	msg.data[0] = 9;
+	msg.data[1] = 9;
+	msg.data[2] = 9;
+	msg.data[3] = 9;
+	s3k_cap_t cap;
+	s3k_err_t err_read = s3k_mon_cap_read(8, 1, idx, &cap);
+	alt_printf("KERNEL: cap type: %X\n", cap.type);
+	// uint64_t bgn = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.bgn);
+	// uint64_t end = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.end);
 
 	s3k_reply_t reply;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);

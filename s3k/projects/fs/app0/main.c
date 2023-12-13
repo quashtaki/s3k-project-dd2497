@@ -60,15 +60,7 @@ void start_monitor(uint64_t tmp) {
 void setup_app1(uint64_t tmp)
 {
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
-	uint64_t driver_addr = s3k_napot_encode(DRIVER_ADDRESS, 0x10000);
 	uint64_t app1_addr = s3k_napot_encode(APP_ADDRESS, 0x10000);
-
-	// Derive a PMP capability for driver main memory
-	// s3k_cap_derive(RAM_MEM, tmp + -2, s3k_mk_pmp(driver_addr, S3K_MEM_RWX));
-	// s3k_cap_derive(RAM_MEM, tmp -1, s3k_mk_pmp(driver_addr, S3K_MEM_RWX));
-	// // s3k_mon_cap_move(MONITOR, APP0_PID, tmp  -2, APP1_PID, 1);
-	// // s3k_mon_pmp_load(MONITOR, APP1_PID, 1, 1);
-	// s3k_mon_pmp_load(MONITOR, APP0_PID, 0, 0);
 
 	// Derive a PMP capability for app1 main memory
 	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(app1_addr, S3K_MEM_RWX));
@@ -96,7 +88,7 @@ void start_app1(uint64_t tmp) {
 	s3k_mon_resume(MONITOR, APP1_PID);
 }
 
-void setup_socket(uint64_t socket, uint64_t tmp)
+void setup_socket(uint64_t socket, uint64_t tmp, uint64_t tmp1)
 {
 	s3k_cap_derive(CHANNEL, socket,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
@@ -104,9 +96,23 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 	s3k_cap_derive(socket, tmp,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
 				     S3K_IPC_SDATA | S3K_IPC_CDATA , 1));
+	s3k_cap_derive(socket, tmp1,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA , 1));
 	s3k_mon_cap_move(MONITOR, APP0_PID, socket, MONITOR_PID, 4); // give monitor server
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp1, APP1_PID, 4); // give app1 client
 }
 
+void setup_socket_app1(uint64_t socket, uint64_t tmp)
+{
+	s3k_cap_derive(CHANNEL, socket,
+		       s3k_mk_socket(2, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA , 0));
+	s3k_cap_derive(socket, tmp,
+		       s3k_mk_socket(2, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA , 1));
+	s3k_mon_cap_move(MONITOR, APP0_PID, socket, APP1_PID, 4); // give app1 server
+}
 
 void setup_shared(uint64_t tmp)
 {
@@ -182,9 +188,8 @@ int main(void)
 		;
 	while (s3k_pmp_load(16, 1))
 		;
-	
 	s3k_sync();
-
+	// some memory for driver for illustration purposes
 	while (s3k_cap_derive(RAM_MEM, 15, s3k_mk_pmp(temp_addr, S3K_MEM_RWX)))
 		;
 	while (s3k_pmp_load(15, 2))
@@ -194,40 +199,26 @@ int main(void)
 	setup_app1(11);	
 	setup_monitor(12);
 	
-	setup_socket(13, 14); // Socket is on 13 - and moved to 4
-	// setup_shared(15);
+	// limited to 1 socket per process??? what is mk_socket chan?
+	setup_socket(13, 14, 19); // Socket is on 13 - and moved to 4
+	// setup_socket_app1(18, 19); // Socket on 18 - moved to 4
 
-		// monitor for app0, app1, monitor
-	
+	// monitor for app0, app1, monitor
 	alt_puts("APP0: gave mon cap to monitor");
 
-	// Order of starting these matters 💀
-	
 	start_app1(11);
 
 	s3k_cap_derive(MONITOR, 17, s3k_mk_monitor(0, 2));
-	s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
-
-
-	// s3k_cap_t cap;
-	// s3k_err_t err = s3k_cap_read(MONITOR, &cap);
-	// alt_printf("APP0: monitor cap read result %X\n", err);
-	// s3k_print_cap(&cap);
+	s3k_err_t ee5 = s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
 
 	start_monitor(12);
-
-	//s3k_mon_cap_move(MONITOR, APP0_PID, 12, APP1_PID, 3); // this does nothing
-	// we dont have cap to write to app1 memory, so its chillll
-
-	// char *app_address = (char *)APP_ADDRESS;
-	// *app_address = 0;
-
-	// is this legal? NO
 
 	alt_puts("APP0: hello from app0");
 
 	char* test;
+	char* test1;
 	test = 0x80060000;
+	test1 = 0x80018000;
 	*test = 'H';
 	*(test+1) = 'e';
 	*(test+2) = 'l';
@@ -240,7 +231,18 @@ int main(void)
 	*(test+9) = 'v';
 	*(test+10) = 'e';
 	*(test+11) = 'r';
-	
+	*(test1) = 'H';
+	*(test1+1) = 'o';
+	*(test1+2) = 'l';
+	*(test1+3) = 'a';
+	*(test1+4) = ' ';
+	*(test1+5) = 'a';
+	*(test1+6) = 'm';
+	*(test1+7) = 'i';
+	*(test1+8) = 'g';
+	*(test1+9) = 'o';
+
+		
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
 	alt_puts("APP0: File system mounted");
@@ -248,7 +250,6 @@ int main(void)
 	UINT bw;
 	FRESULT fr;
 	FIL Fil;			/* File object needed for each open file */
-
 
 	char buffer[1024];
 	fr = f_open(&Fil, "test1.txt", FA_READ);
@@ -264,33 +265,50 @@ int main(void)
 		alt_puts("APP0: File not opened\n");
 	}
 
-	alt_puts("APP0: BEFORE REVOKE");
-	s3k_cap_revoke(15);
-	alt_puts("APP0: AFTER REVOKE");
+	// App0 has illustrated drivers read access to memory above
+	// triggering move of capability to app1 for revocation
+  s3k_msg_t msg;
+	msg.data[0] = 7;
+	msg.data[1] = 7;
+	msg.data[2] = 7;
+	msg.data[3] = 7;
+	s3k_reply_t reply;
+  s3k_reg_write(S3K_REG_SERVTIME, 4500);
+  s3k_err_t err;
+	do {
+	// alt_puts("senders");
+		err = s3k_sock_send(14, &msg);
+	} while (err != 0); //err != 0
 
-	fr = f_open(&Fil, "test2.txt", FA_READ);
-	if (fr == FR_OK) {
-		alt_puts("APP0: File opened\n");
-		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
-		fr = f_close(&Fil);							/* Close the file */
-		if (fr == FR_OK) {
-			buffer[bw] = '\0';
-			alt_puts(buffer);
-		}
-	} else{
-		alt_puts("APP0: File not opened\n");
-	}
+	// alt_puts("APP0: BEFORE REVOKE");
+	// s3k_cap_revoke(15);
+	// alt_puts("APP0: AFTER REVOKE");
+
+	// int i = 0;
+
+	// alt_puts("APP0: awaiting other processes");
+	// s3k_reg_write(S3K_REG_SERVTIME, 4500);
+	// while (i < 10000000000) {
+	// 	i++;
+	// }
+	// alt_puts("APP0: monitor tells me to play ball");
+
+	// fr = f_open(&Fil, "test2.txt", FA_READ);
+	// if (fr == FR_OK) {
+	// 	alt_puts("APP0: File opened\n");
+	// 	f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
+	// 	fr = f_close(&Fil);							/* Close the file */
+	// 	if (fr == FR_OK) {
+	// 		buffer[bw] = '\0';
+	// 		alt_puts(buffer);
+	// 	}
+	// } else{
+	// 	alt_puts("APP0: File not opened\n");
+	// }
 
 	// err = s3k_cap_read(MONITOR, &cap);
 	// alt_printf("APP0: monitor cap read result %X\n", err);
 	// s3k_print_cap(&cap);
-	
-	// alt_puts("APP0: files read and attack executed");
-	// s3k_err_t ee1 = s3k_mon_suspend(MONITOR, APP1_PID);
-	// alt_printf("APP0: suspend result %X\n", ee1);
-	// s3k_err_t ee2 = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
-	// alt_printf("APP0: write result %X\n", ee2);
-	// s3k_err_t ee3 = s3k_mon_resume(MONITOR, APP1_PID);
-	// alt_printf("APP0: resume result %X\n", ee3);
+
 	alt_puts("APP0: done");
 }

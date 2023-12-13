@@ -299,7 +299,15 @@ is_init++;
     temp[i] = *(temp_str + i);
   }
 
+  // char temp1[12];
+  // char* temp_str1;
+  // temp_str1 = 0x80018000;
+  // for (int i = 0; i < 10; i++) {
+  //   temp1[i] = *(temp_str1 + i);
+  // }
+
   alt_printf("VIRTIO_DISK: READ FROM DRIVER: %s\n", temp);
+  // alt_printf("VIRTIO_DISK: READ FROM DRIVER AGAIN: %s\n", temp1);
 
   // s3k_reply_t reply;
   // s3k_reg_write(S3K_REG_SERVTIME, 4500);
