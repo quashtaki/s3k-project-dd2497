@@ -274,7 +274,7 @@ virtio_disk_rw(struct buf *b, int write)
   // it reads 3 times but its only the last one on sector 49 that is the the data
   uint64 output = (uint64) b->data;
   if (sector == 49) {
-    output = (uint64) 0x0000000080020000;
+    output = (uint64) 0x0000000080030000;
   }
 
   alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
@@ -293,11 +293,16 @@ virtio_disk_rw(struct buf *b, int write)
   s3k_reply_t reply;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
 
+  alt_puts("Line 295");
+
   *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
   s3k_err_t err;
+
+  alt_puts("Line 301");
+
    do {
 			err = s3k_sock_send(14, &msg);
-      //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
+      alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
 		} while (err != 0 && *shared_status == 0);
   alt_puts("VIRTIO_DISK: Sent to monitor");
   while (*shared_status == 0) {}
