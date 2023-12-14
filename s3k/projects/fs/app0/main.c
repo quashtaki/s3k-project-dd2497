@@ -198,7 +198,6 @@ int main(void)
 
 	setup_app1(11);	
 	setup_monitor(12);
-	
 	// limited to 1 socket per process??? what is mk_socket chan?
 	setup_socket(13, 14, 19); // Socket is on 13 - and moved to 4
 	// setup_socket_app1(18, 19); // Socket on 18 - moved to 4

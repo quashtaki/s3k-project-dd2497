@@ -112,8 +112,8 @@ int main(void)
 			msg_app1.data[2] = DO_REVOKE;
 			msg_app1.data[3] = DO_REVOKE;
 			do {
-			err_app1 = s3k_sock_send(4, &msg_app1);
-		} while (err_app1 != 0);
+				err_app1 = s3k_sock_send(4, &msg_app1);
+			} while (err_app1 != 0);
 		}
 
 		// this particular data message is used to give app1 driver memory and trigger its revocation of said memory

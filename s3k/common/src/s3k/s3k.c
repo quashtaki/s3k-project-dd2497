@@ -1,5 +1,6 @@
 #include "s3k/s3k.h"
 #include "altc/altio.h"
+#define APP_ADDRESS 0x80020000
 
 typedef union {
 	struct {
@@ -458,18 +459,27 @@ s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 	// uint64_t end = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.end);
 
 	s3k_reply_t reply;
-  s3k_reg_write(S3K_REG_SERVTIME, 4500);
 
 	s3k_err_t err_ipc;
-   do {
-			err_ipc = s3k_sock_send(14, &msg);
-		} while (err_ipc != 0);
-  alt_puts("KERNEL: Sent to monitor");
+	
+  	s3k_reg_write(S3K_REG_SERVTIME, 4500);
+	do {
+		err_ipc = s3k_sock_send(4, &msg);
+	} while (err_ipc != 0);
+  	alt_puts("KERNEL: Sent to monitor");
 
+	//char *shared_status = (char*) SHARED_MEM;
+	//*shared_status = 0;
 	s3k_err_t err;
+	char* status = (char*) APP_ADDRESS+0x5000; //should probably do this in a special memory section and not just in the middle of where the program could be
+	//alt_printf("Kernel: Status before revoke: %x\n", *status);
 	do {
 		err = s3k_try_cap_revoke(idx);
 	} while (err == S3K_ERR_PREEMPTED);
+	*status = 1;
+	//alt_printf("Kernel: Status after revoke: %x\n", *status);
+
+	//*shared_status = 1;
 	return err;
 }
 
