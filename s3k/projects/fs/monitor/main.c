@@ -88,6 +88,7 @@ int main(void)
 
 	s3k_msg_t msg;
 	s3k_reply_t reply;
+	s3k_err_t err;
 	msg.data[0] = 1; // true or false
 
 	while (1) {
@@ -132,6 +133,27 @@ int main(void)
 				alt_puts("MONITOR: Driver memory moved to APP1");
 			}
 		}
+
+		if (reply.data[0] == 9 && reply.data[1] == 9 && reply.data[2] == 9 && reply.data[3] == 9) {
+			alt_puts("MONITOR: Checking if memory belongs to driver");
+			// todo check if memory belongs to driver
+			int drivers_memory = 0;
+			if (1) { // if belongs
+				alt_puts("MONITOR: Memory belongs to driver");
+				drivers_memory = 1;
+			} else {
+				alt_puts("MONITOR: Memory does NOT belong to driver");
+			}
+
+			s3k_reg_write(S3K_REG_SERVTIME, 4500);
+			do {
+				msg.data[0] = drivers_memory;
+				msg.data[1] = drivers_memory;
+				msg.data[2] = drivers_memory;
+				msg.data[3] = drivers_memory;
+				err = s3k_sock_send(4, &msg);
+			} while (err != 0);
+			}
 
 		alt_puts("MONITOR: sent");
 	}

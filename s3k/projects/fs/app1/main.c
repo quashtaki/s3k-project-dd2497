@@ -29,11 +29,13 @@ int main(void)
 		// todo in revoke trigger error until shut down
 		
 		volatile char* status = (char*) APP_ADDRESS+0x5000;
-		*status = 0;
+		*status = 1;
 		//alt_printf("APP1: Status before revoke: %x\n", *status);
 		// do { ... } while (s3k_cap_revoke(15));
 		s3k_cap_revoke(15);
-		while(*status){}; //?
+		while(*status){
+			// alt_puts("APP1: Attempting to revoke capability... waiting");
+		}; //?
 		//alt_printf("APP1: Status after revoke: %x\n", *status);
 		// read shared memory between app1 and kernel to check whether revocation is not done
 		//while(*shared_status){}; //?
