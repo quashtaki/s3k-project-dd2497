@@ -9,6 +9,7 @@
 
 #define DRIVER_ADDRESS 0x80010000
 #define APP_ADDRESS 0x80020000
+#define TEMP_ADDR1 0x80070000
 
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
@@ -117,6 +118,14 @@ int main(void)
 			} while (err_app1 != 0);
 		}
 
+		// check with monitor if app may resume (for illustration purposes)
+		if (reply.data[0] == 6 && reply.data[1] == 6 && reply.data[2] == 6 && reply.data[3] == 6) {
+			alt_puts("MONITOR: Checking allow App0 to resume");
+
+			char* hold_status = (char*) TEMP_ADDR1+0x9000;
+			*hold_status = 0;
+		}
+
 		// this particular data message is used to give app1 driver memory and trigger its revocation of said memory
 		if (reply.data[0] == 7 && reply.data[1] == 7 && reply.data[2] == 7 && reply.data[3] == 7) {
 			alt_puts("MONITOR: APP0 TRIGGER MOVING OF CAPABILITY");
@@ -151,6 +160,7 @@ int main(void)
 				msg.data[1] = drivers_memory;
 				msg.data[2] = drivers_memory;
 				msg.data[3] = drivers_memory;
+				DO_WAIT = 0;
 				err = s3k_sock_send(4, &msg);
 			} while (err != 0);
 			}

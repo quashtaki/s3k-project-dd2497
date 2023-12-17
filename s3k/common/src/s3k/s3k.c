@@ -440,12 +440,12 @@ s3k_err_t s3k_cap_delete(s3k_cidx_t idx)
 					(((uint64_t) tag) << S3K_MAX_BLOCK_SIZE) + \
 					(((uint64_t) block) << S3K_MIN_BLOCK_SIZE) \
 					)
+
 s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 {
 	alt_puts("KERNEL: START REVOKE");
 	alt_printf("REVOKE INDEX: %X\n", idx);
 	alt_printf("KERNEL: pid %X\n", s3k_get_pid());
-	char* temp = "test";
 	s3k_msg_t msg;
 	msg.data[0] = 9;
 	msg.data[1] = 9;
@@ -467,6 +467,7 @@ s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 	//*shared_status = 0;
 	s3k_err_t err;
 	char* status = (char*) APP_ADDRESS+0x5000; //should probably do this in a special memory section and not just in the middle of where the program could be
+	// char* status_driver = (char*) APP_ADDRESS+0x9000;
 	//alt_printf("Kernel: Status before revoke: %x\n", *status);
 
 	if (reply.data[0] == 1 && reply.data[1] == 1 && reply.data[2] == 1 && reply.data[3] == 1) {
@@ -478,8 +479,9 @@ s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 		err = s3k_try_cap_revoke(idx);
 	} while (err == S3K_ERR_PREEMPTED);
 	*status = 0;
+	// *status_driver = 0;
 	//alt_printf("Kernel: Status after revoke: %x\n", *status);
-
+	alt_puts("KERNEL: TEST");
 	//*shared_status = 1;
 	return err;
 }

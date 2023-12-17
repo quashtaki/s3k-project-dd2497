@@ -177,6 +177,7 @@ void s3k_print_cap(s3k_cap_t *cap) {
 	}
 }
 #define TEMP_ADDR 0x80060000
+#define TEMP_ADDR1 0x80070000
 int main(void)
 {	
 	s3k_cap_delete(HART1_TIME);
@@ -184,6 +185,7 @@ int main(void)
 	s3k_cap_delete(HART3_TIME);
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
 	uint64_t temp_addr = s3k_napot_encode(TEMP_ADDR, 0x10000);
+	uint64_t temp_addr1 = s3k_napot_encode(TEMP_ADDR1, 0x10000);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
 	while (s3k_pmp_load(16, 1))
@@ -195,6 +197,18 @@ int main(void)
 	while (s3k_pmp_load(15, 2))
 		;
 	s3k_sync();
+	while (s3k_cap_derive(RAM_MEM, 23, s3k_mk_pmp(temp_addr1, S3K_MEM_RWX)))
+		;
+	while (s3k_cap_derive(RAM_MEM, 24, s3k_mk_pmp(temp_addr1, S3K_MEM_RWX)))
+		;
+	s3k_mon_cap_move(MONITOR, APP0_PID, 24, MONITOR_PID, 24);
+	s3k_mon_pmp_load(MONITOR, MONITOR_PID, 24, 3);
+	while (s3k_pmp_load(23, 3))
+		;
+	s3k_sync();
+
+	char* volatile hold_status = (char*) TEMP_ADDR1+0x9000;
+	*hold_status = 1;
 
 	setup_app1(11);	
 	setup_monitor(12);
@@ -215,9 +229,7 @@ int main(void)
 	alt_puts("APP0: hello from app0");
 
 	char* test;
-	char* test1;
 	test = 0x80060000;
-	test1 = 0x80018000;
 	*test = 'H';
 	*(test+1) = 'e';
 	*(test+2) = 'l';
@@ -230,16 +242,6 @@ int main(void)
 	*(test+9) = 'v';
 	*(test+10) = 'e';
 	*(test+11) = 'r';
-	*(test1) = 'H';
-	*(test1+1) = 'o';
-	*(test1+2) = 'l';
-	*(test1+3) = 'a';
-	*(test1+4) = ' ';
-	*(test1+5) = 'a';
-	*(test1+6) = 'm';
-	*(test1+7) = 'i';
-	*(test1+8) = 'g';
-	*(test1+9) = 'o';
 
 		
 	FATFS FatFs;		/* FatFs work area needed for each volume */
@@ -292,22 +294,38 @@ int main(void)
 	// }
 	// alt_puts("APP0: monitor tells me to play ball");
 
-	// fr = f_open(&Fil, "test2.txt", FA_READ);
-	// if (fr == FR_OK) {
-	// 	alt_puts("APP0: File opened\n");
-	// 	f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
-	// 	fr = f_close(&Fil);							/* Close the file */
-	// 	if (fr == FR_OK) {
-	// 		buffer[bw] = '\0';
-	// 		alt_puts(buffer);
-	// 	}
-	// } else{
-	// 	alt_puts("APP0: File not opened\n");
+	// alt_puts("APP0: Waiting...");
+	// char* volatile status = (char*) APP_ADDRESS+0x9000;
+	// *status = 1;
+
+	// while(1) {
+	// 	alt_puts("APP0: LOOP");
 	// }
 
-	// err = s3k_cap_read(MONITOR, &cap);
-	// alt_printf("APP0: monitor cap read result %X\n", err);
-	// s3k_print_cap(&cap);
+		while (*hold_status) {}
+
+	alt_puts("APP0: Revocation done...");
+
+	while (s3k_cap_derive(RAM_MEM, 25, s3k_mk_pmp(temp_addr, S3K_MEM_RWX)))
+		;
+	while (s3k_pmp_load(25, 4))
+		;
+	s3k_sync();
+
+	alt_puts("APP0: Reading again...");
+
+	fr = f_open(&Fil, "test2.txt", FA_READ);
+	if (fr == FR_OK) {
+		alt_puts("APP0: File opened\n");
+		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
+		fr = f_close(&Fil);							/* Close the file */
+		if (fr == FR_OK) {
+			buffer[bw] = '\0';
+			alt_puts(buffer);
+		}
+	} else{
+		alt_puts("APP0: File not opened\n");
+	}
 
 	alt_puts("APP0: done");
 }

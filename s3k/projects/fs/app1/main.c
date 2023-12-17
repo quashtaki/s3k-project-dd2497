@@ -34,11 +34,20 @@ int main(void)
 		// do { ... } while (s3k_cap_revoke(15));
 		s3k_cap_revoke(15);
 		while(*status){
-			// alt_puts("APP1: Attempting to revoke capability... waiting");
+			alt_puts("APP1: Attempting to revoke capability... waiting");
 		}; //?
 		//alt_printf("APP1: Status after revoke: %x\n", *status);
 		// read shared memory between app1 and kernel to check whether revocation is not done
 		//while(*shared_status){}; //?
+
+		msg.data[0] = 6;
+		msg.data[1] = 6;
+		msg.data[2] = 6;
+		msg.data[3] = 6;
+		s3k_reg_write(S3K_REG_SERVTIME, 4500);
+		do {
+			err = s3k_sock_send(4, &msg);
+		} while (err != 0);
 	}
 	alt_puts((char *)reply.data);
 
