@@ -43,12 +43,9 @@ int main(void)
 
 	
 	char buffer[1024];
-	alt_puts("line 45");
-	fr = f_open(&Fil, "app2.bin", FA_READ);
 	
-	alt_puts("line 47");
+	fr = f_open(&Fil, "app2.bin", FA_READ);
 	if (fr == FR_OK) {
-		alt_puts("APP0: File opened\n");
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
@@ -58,7 +55,7 @@ int main(void)
 	} else{
 		alt_puts("APP0: File not opened\n");
 	}
-	alt_puts("line 57");
+	
 
 	//err = s3k_cap_read(MONITOR, &cap);
 	//alt_printf("APP0: monitor cap read result %X\n", err);

@@ -201,12 +201,12 @@ int main(void)
 	alt_puts("Monitor starts");
 	setup_app0(11);
 	setup_app1(12);	
-	//setup_monitor(12);
+
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
 	setup_shared(15);
 
-		// monitor for app0, app1, monitor
+	// monitor for app0, app1, monitor
 	
 	alt_puts("MONITOR: gave mon cap to APP0");
 
@@ -216,19 +216,10 @@ int main(void)
 
 	s3k_cap_t cap;
 	s3k_err_t err = s3k_cap_read(MONITOR, &cap);
-	alt_printf("Monitor: monitor cap read result %X\n", err);
-	//s3k_print_cap(&cap);
+
 
 	start_app1(12);
 	
-
-	//s3k_cap_derive(MONITOR, 17, s3k_mk_monitor(0, 2));
-	//s3k_mon_cap_move(MONITOR, APP0_PID, 17, MONITOR_PID, MONITOR);
-
-
-	
-	//start_monitor(12);
-
 
 	s3k_msg_t msg;
 	s3k_reply_t reply;
@@ -240,30 +231,25 @@ int main(void)
 	char *shared_result = (char*) SHARED_MEM + 1;
 
 	int i = 0;
+	
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
-
 		do {		
 			reply = s3k_sock_recv(13,0);
-
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
 		alt_puts("MONITOR: received");
-		// suspend instantly
 		*shared_status = 0;
 		s3k_mon_suspend(MONITOR, APP0_PID);
-		// reply data is hex
-		alt_printf("MONITOR: data: %X\n", *reply.data);
 		
-		// we want to check if address is within app0 capabilities
-	
-
-		alt_puts("MONITOR: CHECKING CAPS");
+		//Checking the capability of app0
 		bool result = false;
 		for (int i = 0; i < 32; i++) {
 			s3k_cap_t cap;
+			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
+			//checking that the capability of app0 has the permission to access the addres
 			result = inside_pmp(&cap,(uint64_t) *reply.data);
 			if (result) {
 				break;
@@ -273,7 +259,7 @@ int main(void)
 		
 		s3k_mon_resume(MONITOR, APP0_PID);
 		alt_puts("MONITOR: resuming");
-		*shared_result = result; // antingen 1 eller 0 beroende på om ok
+		*shared_result = result; // either 1 or 0
 		*shared_status = 1; // always 1 if success
 		alt_puts("MONITOR: sent");
 
@@ -281,13 +267,10 @@ int main(void)
 	}
 
 
-	alt_puts("Starting app1 again. Let's see what happens now:");
-	err = s3k_mon_suspend(MONITOR, APP1_PID);
-	alt_printf("err = %X", err);
-	err = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80020000);
-	alt_printf("err = %X", err);
-	err = s3k_mon_resume(MONITOR, APP1_PID);
-	alt_printf("err = %X", err);
+	s3k_mon_suspend(MONITOR, APP1_PID);
+	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80030000);
+	s3k_mon_resume(MONITOR, APP1_PID);
+
 
 }
 

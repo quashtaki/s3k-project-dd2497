@@ -277,7 +277,7 @@ virtio_disk_rw(struct buf *b, int write)
     output = (uint64) 0x0000000080030000;
   }
 
-  alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
+  //alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
 
 
   // HERE WE CHECK WITH MONITOR!
@@ -293,12 +293,10 @@ virtio_disk_rw(struct buf *b, int write)
   s3k_reply_t reply;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
 
-  alt_puts("Line 295");
 
   *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
   s3k_err_t err;
 
-  alt_puts("Line 301");
 
    do {
 			err = s3k_sock_send(4, &msg);
