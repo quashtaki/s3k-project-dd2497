@@ -301,8 +301,8 @@ virtio_disk_rw(struct buf *b, int write)
   alt_puts("Line 301");
 
    do {
-			err = s3k_sock_send(14, &msg);
-      alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
+			err = s3k_sock_send(4, &msg);
+      alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
 		} while (err != 0 && *shared_status == 0);
   alt_puts("VIRTIO_DISK: Sent to monitor");
   while (*shared_status == 0) {}

@@ -3761,8 +3761,7 @@ FRESULT f_open (
 	DEF_NAMBUF
 
 
-	if (!fp) return FR_INVALID_OBJECT;
-
+	
 	/* Get logical drive number */
 	mode &= FF_FS_READONLY ? FA_READ : FA_READ | FA_WRITE | FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_OPEN_ALWAYS | FA_OPEN_APPEND;
 	res = mount_volume(&path, &fs, mode);

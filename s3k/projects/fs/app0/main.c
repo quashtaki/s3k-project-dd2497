@@ -31,6 +31,7 @@ int main(void)
 {	
 
 	alt_puts("APP0: hello from app0");
+	//s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
 	
 	FATFS FatFs;		/* FatFs work area needed for each volume */
 	f_mount(&FatFs, "", 0);		/* Give a work area to the default drive */
@@ -44,6 +45,7 @@ int main(void)
 	char buffer[1024];
 	alt_puts("line 45");
 	fr = f_open(&Fil, "app2.bin", FA_READ);
+	
 	alt_puts("line 47");
 	if (fr == FR_OK) {
 		alt_puts("APP0: File opened\n");

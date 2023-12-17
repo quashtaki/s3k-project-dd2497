@@ -28,7 +28,7 @@
 void setup_app0(uint64_t tmp)
 {	s3k_err_t err;
 
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
 	uint64_t app0_addr = s3k_napot_encode(APP0_ADDRESS, 0x10000);
 
 	// Derive a PMP capability for app0 main memory
@@ -59,7 +59,7 @@ void start_app0(uint64_t tmp) {
 
 void setup_app1(uint64_t tmp)
 {
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
 	uint64_t app1_addr = s3k_napot_encode(APP1_ADDRESS, 0x10000);
 
 	// Derive a PMP capability for app1 main memory
@@ -73,7 +73,8 @@ void setup_app1(uint64_t tmp)
 	s3k_mon_pmp_load(MONITOR, APP1_PID, 1, 1);
 }
 
-void start_app1(uint64_t tmp) {
+void start_app1(uint64_t tmp) 
+{
 	// derive a time slice capability
 	s3k_cap_derive(HART0_TIME, tmp,
 		       s3k_mk_time(S3K_MIN_HART, 8, 16));
@@ -86,6 +87,7 @@ void start_app1(uint64_t tmp) {
 	s3k_mon_resume(MONITOR, APP1_PID);
 }
 
+
 void setup_socket(uint64_t socket, uint64_t tmp)
 {
 	s3k_cap_derive(CHANNEL, socket,
@@ -94,7 +96,7 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 	s3k_cap_derive(socket, tmp,
 		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
 				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
-	s3k_mon_cap_move(MONITOR, MONITOR_PID, socket, APP0_PID, 4); // give monitor server
+	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 4); // give app0 client
 }
 
 void setup_shared(uint64_t tmp)
@@ -190,7 +192,7 @@ int main(void)
 	s3k_cap_delete(HART1_TIME);
 	s3k_cap_delete(HART2_TIME);
 	s3k_cap_delete(HART3_TIME);
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
 	while (s3k_pmp_load(16, 1))
@@ -237,11 +239,12 @@ int main(void)
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
 
-	while (1) {
+	int i = 0;
+	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
 
 		do {		
-			reply = s3k_sock_recv(4,0);
+			reply = s3k_sock_recv(13,0);
 
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
@@ -267,12 +270,24 @@ int main(void)
 			}
 		}
 		
-
+		
 		s3k_mon_resume(MONITOR, APP0_PID);
 		alt_puts("MONITOR: resuming");
 		*shared_result = result; // antingen 1 eller 0 beroende på om ok
 		*shared_status = 1; // always 1 if success
 		alt_puts("MONITOR: sent");
+
+		i++;
 	}
+
+
+	alt_puts("Starting app1 again. Let's see what happens now:");
+	err = s3k_mon_suspend(MONITOR, APP1_PID);
+	alt_printf("err = %X", err);
+	err = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80020000);
+	alt_printf("err = %X", err);
+	err = s3k_mon_resume(MONITOR, APP1_PID);
+	alt_printf("err = %X", err);
+
 }
 
