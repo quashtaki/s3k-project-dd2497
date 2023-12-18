@@ -118,10 +118,11 @@ int main(void)
 			} while (err_app1 != 0);
 		}
 
-		// check with monitor if app may resume (for illustration purposes)
+		// trigger monitor to resume app0 (for illustration purposes)
 		if (reply.data[0] == 6 && reply.data[1] == 6 && reply.data[2] == 6 && reply.data[3] == 6) {
 			alt_puts("MONITOR: Checking allow App0 to resume");
 
+			s3k_err_t ee30 = s3k_mon_resume(MONITOR, APP0_PID);
 			char* hold_status = (char*) TEMP_ADDR1+0x9000;
 			*hold_status = 0;
 		}
@@ -134,13 +135,28 @@ int main(void)
 			s3k_err_t ee10 = s3k_mon_suspend(MONITOR, APP0_PID);
 			s3k_err_t ee1 = s3k_mon_suspend(MONITOR, APP1_PID);
 			s3k_err_t ee2 = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP_ADDRESS);
-			s3k_err_t ee4 = s3k_mon_cap_move(MONITOR, APP0_PID, 15, APP1_PID, 15);
+			// s3k_err_t ee4 = s3k_mon_cap_move(MONITOR, APP0_PID, 15, APP1_PID, 15);s3k_err_t ee40; // other fs allocated region for access from driver
+			s3k_err_t ee40 = s3k_mon_cap_move(MONITOR, APP0_PID, 26, APP1_PID, 26);s3k_err_t ee4; // region of descriptors
 			s3k_err_t ee30 = s3k_mon_resume(MONITOR, APP0_PID);
 			s3k_err_t ee3 = s3k_mon_resume(MONITOR, APP1_PID);
 
-			if (!ee10 && !ee1 && !ee2 && !ee4 && !ee30 && !ee3) {
+			if (!ee10 && !ee1 && !ee2 && !ee30 && !ee3 && (!ee4 || !ee40)) {
 				alt_puts("MONITOR: Driver memory moved to APP1");
 			}
+		}
+
+		if (reply.data[0] == 8 && reply.data[1] == 8 && reply.data[2] == 8 && reply.data[3] == 8) {
+			s3k_err_t ee10 = s3k_mon_suspend(MONITOR, APP0_PID);
+
+			s3k_reg_write(S3K_REG_SERVTIME, 4500);
+			do {
+				msg.data[0] = 1;
+				msg.data[1] = 1;
+				msg.data[2] = 1;
+				msg.data[3] = 1;
+
+				err = s3k_sock_send(4, &msg);
+			} while (err != 0);
 		}
 
 		if (reply.data[0] == 9 && reply.data[1] == 9 && reply.data[2] == 9 && reply.data[3] == 9) {
@@ -160,7 +176,7 @@ int main(void)
 				msg.data[1] = drivers_memory;
 				msg.data[2] = drivers_memory;
 				msg.data[3] = drivers_memory;
-				DO_WAIT = 0;
+
 				err = s3k_sock_send(4, &msg);
 			} while (err != 0);
 			}

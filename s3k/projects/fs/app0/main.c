@@ -186,6 +186,7 @@ int main(void)
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
 	uint64_t temp_addr = s3k_napot_encode(TEMP_ADDR, 0x10000);
 	uint64_t temp_addr1 = s3k_napot_encode(TEMP_ADDR1, 0x10000);
+	uint64_t driver_addr = s3k_napot_encode(DRIVER_ADDRESS, 0x10000);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
 	while (s3k_pmp_load(16, 1))
@@ -204,6 +205,11 @@ int main(void)
 	s3k_mon_cap_move(MONITOR, APP0_PID, 24, MONITOR_PID, 24);
 	s3k_mon_pmp_load(MONITOR, MONITOR_PID, 24, 3);
 	while (s3k_pmp_load(23, 3))
+		;
+	s3k_sync();
+	while (s3k_cap_derive(RAM_MEM, 26, s3k_mk_pmp(driver_addr, S3K_MEM_RWX)))
+		;
+	while (s3k_pmp_load(26, 5))
 		;
 	s3k_sync();
 
@@ -281,28 +287,7 @@ int main(void)
 		err = s3k_sock_send(14, &msg);
 	} while (err != 0); //err != 0
 
-	// alt_puts("APP0: BEFORE REVOKE");
-	// s3k_cap_revoke(15);
-	// alt_puts("APP0: AFTER REVOKE");
-
-	// int i = 0;
-
-	// alt_puts("APP0: awaiting other processes");
-	// s3k_reg_write(S3K_REG_SERVTIME, 4500);
-	// while (i < 10000000000) {
-	// 	i++;
-	// }
-	// alt_puts("APP0: monitor tells me to play ball");
-
-	// alt_puts("APP0: Waiting...");
-	// char* volatile status = (char*) APP_ADDRESS+0x9000;
-	// *status = 1;
-
-	// while(1) {
-	// 	alt_puts("APP0: LOOP");
-	// }
-
-		while (*hold_status) {}
+	while (*hold_status) {}
 
 	alt_puts("APP0: Revocation done...");
 
@@ -314,7 +299,7 @@ int main(void)
 
 	alt_puts("APP0: Reading again...");
 
-	fr = f_open(&Fil, "test2.txt", FA_READ);
+	fr = f_open(&Fil, "test1.txt", FA_READ);
 	if (fr == FR_OK) {
 		alt_puts("APP0: File opened\n");
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */

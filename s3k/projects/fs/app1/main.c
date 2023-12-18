@@ -32,7 +32,8 @@ int main(void)
 		*status = 1;
 		//alt_printf("APP1: Status before revoke: %x\n", *status);
 		// do { ... } while (s3k_cap_revoke(15));
-		s3k_cap_revoke(15);
+		// s3k_cap_revoke(15);
+		s3k_cap_revoke(26);
 		while(*status){
 			alt_puts("APP1: Attempting to revoke capability... waiting");
 		}; //?
@@ -40,6 +41,7 @@ int main(void)
 		// read shared memory between app1 and kernel to check whether revocation is not done
 		//while(*shared_status){}; //?
 
+		// trigger resume of driver
 		msg.data[0] = 6;
 		msg.data[1] = 6;
 		msg.data[2] = 6;

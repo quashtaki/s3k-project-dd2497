@@ -275,6 +275,7 @@ is_init++;
   // instead of setting data param in b we write straight to memory
   // it reads 3 times but its only the last one on sector 49 that is the the data
   uint64 output = (uint64) b->data;
+
   if (sector == 49) {
     output = (uint64) 0x0000000080020000;
   }
@@ -349,6 +350,12 @@ is_init++;
   disk.desc[idx[2]].len = 1;
   disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
   disk.desc[idx[2]].next = 0;
+
+  if (is_init > 0) {
+    alt_printf("VIRTIO addr0: %x\n", disk.desc[idx[0]].addr);
+    alt_printf("VIRTIO addr1: %x\n", disk.desc[idx[1]].addr);
+    alt_printf("VIRTIO addr2: %x\n", disk.desc[idx[2]].addr);
+  }
 
   // record struct buf for virtio_disk_intr().
   b->disk = 1;

@@ -472,7 +472,18 @@ s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 
 	if (reply.data[0] == 1 && reply.data[1] == 1 && reply.data[2] == 1 && reply.data[3] == 1) {
 		alt_puts("KERNEL: Memory belongs to disk driver, shutting process down");
-		s3k_mon_suspend(8, 0);
+
+		msg.data[0] = 8;
+		msg.data[1] = 8;
+		msg.data[2] = 8;
+		msg.data[3] = 8;
+		do {
+			reply = s3k_sock_sendrecv(4, &msg);
+		} while (reply.err != 0);
+
+		if (reply.data[0] == 1 && reply.data[1] == 1 && reply.data[2] == 1 && reply.data[3] == 1) {
+			alt_puts("KERNEL: Disk driver shut down");
+		}
 	}
 
 	do {
@@ -481,7 +492,6 @@ s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 	*status = 0;
 	// *status_driver = 0;
 	//alt_printf("Kernel: Status after revoke: %x\n", *status);
-	alt_puts("KERNEL: TEST");
 	//*shared_status = 1;
 	return err;
 }
