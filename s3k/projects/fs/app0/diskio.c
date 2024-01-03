@@ -44,7 +44,7 @@ DSTATUS disk_initialize (
 {
 	switch (pdrv) {
 	case DEV_VIRTIO :
-		virtio_disk_init();
+		//virtio_disk_init();
 		return disk_status(pdrv);
 	}
 

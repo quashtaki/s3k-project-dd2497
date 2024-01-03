@@ -1,6 +1,7 @@
 #include "altc/altio.h"
 #include "altc/string.h"
 #include "s3k/s3k.h"
+#include "setup_queue.h"
 
 #define MONITOR_PID 0
 #define APP0_PID 1
@@ -23,7 +24,6 @@
 
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
-
 
 void setup_app0(uint64_t tmp)
 {	s3k_err_t err;
@@ -189,35 +189,40 @@ bool inside_pmp(s3k_cap_t *cap, uint64_t addr) {
 
 int main(void)
 {	
+
 	s3k_cap_delete(HART1_TIME);
 	s3k_cap_delete(HART2_TIME);
 	s3k_cap_delete(HART3_TIME);
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
 	while (s3k_pmp_load(16, 1))
 		;
 	s3k_sync();
 	alt_puts("Monitor starts");
+
+	initialize();
+
+
+
+	// if (1) {
+	// 	return 0;
+	// }
+
+
+
+
+
+
 	setup_app0(11);
 	setup_app1(12);	
-
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
 	setup_shared(15);
 
-	// monitor for app0, app1, monitor
-	
-	alt_puts("MONITOR: gave mon cap to APP0");
-
 	// Order of starting these matters 💀
 	
 	start_app0(11);
-
-	s3k_cap_t cap;
-	s3k_err_t err = s3k_cap_read(MONITOR, &cap);
-
-
 	start_app1(12);
 	
 
@@ -225,12 +230,12 @@ int main(void)
 	s3k_reply_t reply;
 	msg.data[0] = 1; // true or false
 
-	
-
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
 
 	int i = 0;
+
+	alt_puts("MONITOR: starting loop, stuck for now");
 	
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
@@ -249,7 +254,7 @@ int main(void)
 			s3k_cap_t cap;
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
-			//checking that the capability of app0 has the permission to access the addres
+			//checking that the capability of app0 has the permission to access the addres 
 			result = inside_pmp(&cap,(uint64_t) *reply.data);
 			if (result) {
 				break;
@@ -270,7 +275,5 @@ int main(void)
 	s3k_mon_suspend(MONITOR, APP1_PID);
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80030000);
 	s3k_mon_resume(MONITOR, APP1_PID);
-
-
 }
 

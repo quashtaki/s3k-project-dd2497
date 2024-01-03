@@ -11,6 +11,15 @@
         "any": "c",
         "memory": "c",
         "random": "c",
-        "future": "c"
+        "future": "c",
+        "types.h": "c",
+        "virtio_disk.h": "c",
+        "buf.h": "c",
+        "virtio.h": "c",
+        "string.h": "c",
+        "fstream": "c",
+        "setup_queue.h": "c",
+        "s3k.h": "c",
+        "altio.h": "c"
     }
 }

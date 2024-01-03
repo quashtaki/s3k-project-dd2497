@@ -55,18 +55,4 @@ int main(void)
 	} else{
 		alt_puts("APP0: File not opened\n");
 	}
-	
-
-	//err = s3k_cap_read(MONITOR, &cap);
-	//alt_printf("APP0: monitor cap read result %X\n", err);
-	//s3k_print_cap(&cap);
-	
-	//alt_puts("APP0: files read and attack executed");
-	//s3k_err_t ee1 = s3k_mon_suspend(MONITOR, APP1_PID);
-	//alt_printf("APP0: suspend result %X\n", ee1);
-	//s3k_err_t ee2 = s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, APP1_ADDRESS);
-	//alt_printf("APP0: write result %X\n", ee2);
-	//s3k_err_t ee3 = s3k_mon_resume(MONITOR, APP1_PID);
-	//alt_printf("APP0: resume result %X\n", ee3);
-	//alt_puts("APP0: done");
 }
