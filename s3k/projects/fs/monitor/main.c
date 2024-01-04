@@ -201,24 +201,14 @@ int main(void)
 	s3k_sync();
 	alt_puts("Monitor starts");
 
-	initialize();
-
-
-
-	// if (1) {
-	// 	return 0;
-	// }
-
-
-
-
-
-
 	setup_app0(11);
 	setup_app1(12);	
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
 	setup_shared(15);
+
+	alt_puts("MONITOR: setup done");
+	initialize();
 
 	// Order of starting these matters 💀
 	
