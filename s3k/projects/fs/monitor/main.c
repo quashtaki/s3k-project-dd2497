@@ -23,6 +23,7 @@
 #define APP1_ADDRESS 0x80030000
 
 #define SHARED_MEM 0x80050000
+#define DISK_ADDRESS 0x80050000
 #define SHARED_MEM_LEN 0x10000
 
 void setup_app0(uint64_t tmp)
@@ -107,13 +108,14 @@ void setup_shared(uint64_t tmp)
 	alt_printf("MONITOR: shared mem derivation result %X\n", err);
 	// create two pmps for shared memory
 	s3k_cap_derive(tmp, 20, s3k_mk_pmp(shared_address, S3K_MEM_RW)); // TODO: this to only read 
-	s3k_cap_derive(tmp, 21, s3k_mk_pmp(shared_address, S3K_MEM_RW));
+	s3k_cap_derive(tmp, 21, s3k_mk_pmp(shared_address, S3K_MEM_R)); // We make shared memory read only for app0
 	// delete mem cap
 	s3k_cap_delete(tmp);
-	// move pmp 1 to app0 and pmp 2 to monitor
+	// move pmp 1 to app0
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, 21, APP0_PID, 3);
-	// load pmp 1 for app0 and pmp 2 for monitor
+	// load pmp 2 for monitor
 	s3k_pmp_load(20, 2);
+	// load pmp 1 for app0
 	s3k_mon_pmp_load(MONITOR, APP0_PID, 3, 2);
 
 	s3k_sync_mem();
@@ -172,15 +174,24 @@ bool inside_memory(s3k_cap_t *cap, uint64_t addr) {
 	return (addr >= bgn && addr < end);
 }
 
-bool inside_pmp(s3k_cap_t *cap, uint64_t addr) {
-	if ((*cap).type != S3K_CAPTY_PMP)
-		return false;
+// checks if the address is inside the capability
+bool inside_cap(s3k_cap_t *cap, uint64_t addr) {
+	s3k_capty_t type = (*cap).type;
 	uint64_t bgn;
-	uint64_t size;
-	s3k_napot_decode((*cap).pmp.addr, &bgn, &size);
-	uint64_t end = bgn + size;
-	int priv = (*cap).pmp.rwx;
-	// if not high enough privileges
+	uint64_t end;
+	int priv;
+	if (type == S3K_CAPTY_PMP) {
+		uint64_t size;
+		s3k_napot_decode((*cap).pmp.addr, &bgn, &size);
+		end = bgn + size;
+		priv = (*cap).pmp.rwx;
+	} else if (type == S3K_CAPTY_MEMORY) {
+		bgn = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.bgn);
+		end = TAG_BLOCK_TO_ADDR((*cap).mem.tag, (*cap).mem.end);
+		priv = (*cap).mem.rwx;
+	} else {
+		return false;
+	}
 	if (priv != S3K_MEM_W && priv != S3K_MEM_RW && priv != S3K_MEM_RWX ) {
 		return false;
 	}
@@ -227,6 +238,7 @@ int main(void)
 
 	alt_puts("MONITOR: starting loop, stuck for now");
 	
+	// this loop is to start app2 after the attack
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
 		do {		
@@ -235,8 +247,10 @@ int main(void)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
 		alt_puts("MONITOR: received");
-		*shared_status = 0;
 		s3k_mon_suspend(MONITOR, APP0_PID);
+		
+		uint16_t *buf = reply.data[0];
+		int write = (int) reply.data[1]; // we cast to int
 		
 		//Checking the capability of app0
 		bool result = false;
@@ -245,17 +259,20 @@ int main(void)
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
 			//checking that the capability of app0 has the permission to access the addres 
-			result = inside_pmp(&cap,(uint64_t) *reply.data);
+			result = inside_cap(&cap,(uint64_t) *reply.data);
 			if (result) {
 				break;
 			}
 		}
-		
-		
+
+		if (!result) {
+			alt_puts("MONITOR: denied access to memory");
+			// we don't resume app0 as its trying to access memory it doesn't have access to
+			continue;
+		}
+
+		read_write(buf, write);
 		s3k_mon_resume(MONITOR, APP0_PID);
-		alt_puts("MONITOR: resuming");
-		*shared_result = result; // either 1 or 0
-		*shared_status = 1; // always 1 if success
 		alt_puts("MONITOR: sent");
 
 		i++;

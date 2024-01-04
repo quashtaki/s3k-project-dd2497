@@ -12,18 +12,11 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define SHARED_MEM 0x80050000
-#define SHARED_MEM_LEN 0x10000
+#define DISK_ADDRESS 0x80050000
 
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
 
-struct disk *disk = (struct disk *) SHARED_MEM;
-
-void test(void) {
-    alt_puts("test\n");
-    alt_printf("%X", disk);
-    
-}
+struct disk *disk = (struct disk *) DISK_ADDRESS;
 
 // find a free descriptor, mark it non-free, return its index.
 static int
@@ -157,3 +150,48 @@ initialize(void)
   disk->initialised = 1;
   alt_puts("Disk Initialization completed\n");
 }
+
+void read_write(struct buf *b, int write)
+{
+  // here we basically need the functionality of virtio_disk_rw + virtio_disk_intr
+}
+
+
+// void
+// virtio_disk_intr(void)
+// {
+//   /* acquire(&disk.vdisk_lock); */
+
+//   // the device won't raise another interrupt until we tell it
+//   // we've seen this interrupt, which the following line does.
+//   // this may race with the device writing new entries to
+//   // the "used" ring, in which case we may process the new
+//   // completion entries in this interrupt, and have nothing to do
+//   // in the next interrupt, which is harmless.
+//   *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
+
+//   __sync_synchronize();
+
+//   // the device increments disk.used->idx when it
+//   // adds an entry to the used ring.
+
+//   struct disk *diskPtr = (struct disk *) DISK_ADDRESS;
+
+//   while(disk.used_idx != disk.used->idx){
+//     __sync_synchronize();
+//     int id = disk.used->ring[disk.used_idx % NUM].id;
+
+//     if(disk.info[id].status != 0) {
+//       alt_puts("virtio_disk_intr status");
+//       return;
+//     }
+
+//     struct buf *b = disk.info[id].b;
+//     b->disk = 0;   // disk is done with buf
+//     /* wakeup(b); */
+
+//     disk.used_idx += 1;
+//   }
+
+//   /* release(&disk.vdisk_lock); */
+// }

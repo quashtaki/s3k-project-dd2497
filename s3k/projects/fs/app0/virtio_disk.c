@@ -27,8 +27,7 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define SHARED_MEM 0x80050000
-#define SHARED_MEM_LEN 0x10000
+#define DISK_ADDRESS 0x80050000
 
 // the address of virtio mmio register r.
 //#define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
@@ -39,14 +38,37 @@ void virtio_disk_intr(void);
 
 int virtio_disk_status() {
   alt_puts("Getting status from disk - but probably failing bc no access to that mem region");
-  struct disk *disk = (struct disk *) SHARED_MEM;
+  struct disk *disk = (struct disk *) DISK_ADDRESS;
   return disk->initialised;
 }
 
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-  alt_puts("VIRTIO_DISK: got call from diskio");
+  alt_puts("VIRTIO_DISK: Checking with monitor...");
+  s3k_msg_t msg;
+  memset(msg.data, 0, sizeof(msg.data)); // clear data
+  //set data
+  msg.data[0] = (uint64_t) b;
+  msg.data[1] = (uint64_t) write;
+
+  s3k_reply_t reply;
+  s3k_err_t err;
+  s3k_reg_write(S3K_REG_SERVTIME, 4500);
+
+  // Send buf pointer to monitor
+  do {
+			err = s3k_sock_send(4, &msg);
+      alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
+		} while (err != 0);
+
+  // instead of a waiting bit we should be able to look at the data structure like in the other one
+
+  while(b->disk == 1) {} // this should work - monitor is gonna switch this when done
+
+  // i guess the monitor never needs to restart app0 if it tries to cheat
+  // this is similar to how it works currently with the 
+  alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 }
 
 // void
