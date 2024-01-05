@@ -8,6 +8,7 @@
 
 void initialize(void);
 void read_write(struct buf *b, int write);
+void interrupt(void);
 
 #define PGSIZE 4096
 #define PGSHIFT 12 

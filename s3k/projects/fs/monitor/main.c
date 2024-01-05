@@ -227,15 +227,8 @@ int main(void)
 	start_app1(12);
 	
 
-	s3k_msg_t msg;
 	s3k_reply_t reply;
-	msg.data[0] = 1; // true or false
-
-	char *shared_status = (char*) SHARED_MEM;
-	char *shared_result = (char*) SHARED_MEM + 1;
-
 	int i = 0;
-
 	alt_puts("MONITOR: starting loop, stuck for now");
 	
 	// this loop is to start app2 after the attack
@@ -248,10 +241,14 @@ int main(void)
 		} while (reply.err);
 		alt_puts("MONITOR: received");
 		s3k_mon_suspend(MONITOR, APP0_PID);
-		
-		uint16_t *buf = reply.data[0];
+		alt_puts("MONITOR: suspended");
+		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
+		alt_printf("MONITOR: received buf %X\n", b);
 		int write = (int) reply.data[1]; // we cast to int
 		
+		alt_printf("MONITOR: data %X\n", &b->blockno);
+		alt_puts("MONITOR: checking memory access");
+
 		//Checking the capability of app0
 		bool result = false;
 		for (int i = 0; i < 32; i++) {
@@ -259,7 +256,7 @@ int main(void)
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
 			//checking that the capability of app0 has the permission to access the addres 
-			result = inside_cap(&cap,(uint64_t) *reply.data);
+			result = inside_cap(&cap,(uint64_t) b->data); // get the pointer
 			if (result) {
 				break;
 			}
@@ -271,7 +268,8 @@ int main(void)
 			continue;
 		}
 
-		read_write(buf, write);
+		alt_puts("MONITOR: allowed access to memory");
+		read_write(b, write);
 		s3k_mon_resume(MONITOR, APP0_PID);
 		alt_puts("MONITOR: sent");
 

@@ -153,9 +153,136 @@ initialize(void)
 
 void read_write(struct buf *b, int write)
 {
+  alt_puts("MONITOR: read-write");
   // here we basically need the functionality of virtio_disk_rw + virtio_disk_intr
+
+  // We are blocked from reading at buf for some reason
+  // We have not set up a PMP for that regions, so somewhat makes sense
+  // Could also send cap - but why, monitor should be able to do whatever
+
+  uint64 sector = b->blockno * (BSIZE / 512);
+
+  /* acquire(&disk.vdisk_lock); */
+
+  // the spec's Section 5.2 says that legacy block operations use
+  // three descriptors: one for type/reserved/sector, one for the
+  // data, one for a 1-byte status result.
+
+  // allocate the three descriptors.
+  int idx[3];
+  while(1){
+    if(alloc3_desc(idx) == 0) {
+      break;
+    }
+    /* sleep(&disk.free[0], &disk.vdisk_lock); */
+  }
+
+  // format the three descriptors.
+  // qemu's virtio-blk.c reads them.
+
+  struct virtio_blk_req *buf0 = &disk->ops[idx[0]];
+
+  if(write)
+    buf0->type = VIRTIO_BLK_T_OUT; // write the disk
+  else
+    buf0->type = VIRTIO_BLK_T_IN; // read the disk
+  buf0->reserved = 0;
+  buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
+
+  disk->desc[idx[0]].addr = (uint64) buf0; // vad är detta?
+  disk->desc[idx[0]].len = sizeof(struct virtio_blk_req);
+  disk->desc[idx[0]].flags = VRING_DESC_F_NEXT;
+  disk->desc[idx[0]].next = idx[1];
+  
+  // instead of setting data param in b we write straight to memory
+  // it reads 3 times but its only the last one on sector 49 that is the the data
+  // uint64 output = (uint64) b->data;
+  // if (sector == 49) {
+  //   output = (uint64) 0x0000000080030000;
+  // }
+
+  disk->desc[idx[1]].addr = (uint64) b->data;
+  disk->desc[idx[1]].len = BSIZE;
+  if(write)
+    disk->desc[idx[1]].flags = 0; // device reads b->data
+  else
+    disk->desc[idx[1]].flags = VRING_DESC_F_WRITE; // device writes b->data
+  disk->desc[idx[1]].flags |= VRING_DESC_F_NEXT;
+  disk->desc[idx[1]].next = idx[2];
+
+  disk->info[idx[0]].status = 0xff; // device writes 0 on success
+  disk->desc[idx[2]].addr = (uint64) &disk->info[idx[0]].status;
+  disk->desc[idx[2]].len = 1;
+  disk->desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
+  disk->desc[idx[2]].next = 0;
+
+  // record struct buf for virtio_disk_intr().
+  b->disk = 1;
+  disk->info[idx[0]].b = b;
+
+  // tell the device the first index in our chain of descriptors.
+  disk->avail->ring[disk->avail->idx % NUM] = idx[0];
+
+  __sync_synchronize();
+
+  // tell the device another avail ring entry is available.
+  disk->avail->idx += 1; // not % NUM ...
+
+  __sync_synchronize();
+
+  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
+
+  alt_puts("doing intr");
+
+  // Wait for virtio_disk_intr() to say request has finished.
+  while(b->disk == 1) {
+    interrupt();
+  }
+
+
+  disk->info[idx[0]].b = 0;
+  free_chain(idx[0]);
+
+  alt_puts("MONITOR: read_write done");
+
 }
 
+void
+interrupt(void)
+{
+  // the device won't raise another interrupt until we tell it
+  // we've seen this interrupt, which the following line does.
+  // this may race with the device writing new entries to
+  // the "used" ring, in which case we may process the new
+  // completion entries in this interrupt, and have nothing to do
+  // in the next interrupt, which is harmless.
+  *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
+
+  __sync_synchronize();
+
+  // the device increments disk.used->idx when it
+  // adds an entry to the used ring.
+
+  struct disk *diskPtr = (struct disk *) DISK_ADDRESS;
+
+  while(disk->used_idx != disk->used->idx){
+    __sync_synchronize();
+    int id = disk->used->ring[disk->used_idx % NUM].id;
+
+    if(disk->info[id].status != 0) {
+      alt_puts("virtio_disk_intr status");
+      return;
+    }
+
+    struct buf *b = disk->info[id].b;
+    b->disk = 0;   // disk is done with buf
+    /* wakeup(b); */
+
+    disk->used_idx += 1;
+  }
+
+  /* release(&disk.vdisk_lock); */
+}
 
 // void
 // virtio_disk_intr(void)

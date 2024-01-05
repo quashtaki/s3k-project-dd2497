@@ -20,6 +20,7 @@
         "fstream": "c",
         "setup_queue.h": "c",
         "s3k.h": "c",
-        "altio.h": "c"
+        "altio.h": "c",
+        "coroutine": "c"
     }
 }

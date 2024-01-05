@@ -11,6 +11,7 @@
 #include "diskio.h"		/* Declarations of disk functions */
 #include "virtio_disk.h"
 #include <string.h>
+#include "altc/altio.h"
 
 /* Definitions of physical drive number for each drive */
 #define DEV_VIRTIO		0	/* Example: Map Virtiodisk to physical drive 0 */
@@ -73,6 +74,7 @@ DRESULT disk_read (
 		do {
 			buffer.blockno = sector;
 			memset(buffer.data, 0, sizeof(buffer.data));
+			alt_printf("DISKIO: Writing to address %X\n", &buffer.data);
 			virtio_disk_rw(&buffer, 0);
 			memcpy(buff, buffer.data, 512);
 			buff += 512;
