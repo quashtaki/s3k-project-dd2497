@@ -217,7 +217,7 @@ void read_write(struct buf *b, int write)
   disk->desc[idx[2]].next = 0;
 
   // record struct buf for virtio_disk_intr().
-  b->disk = 1;
+  b->disk = 1; // can we do this earlier??? otherwise we need comms
   disk->info[idx[0]].b = b;
 
   // tell the device the first index in our chain of descriptors.

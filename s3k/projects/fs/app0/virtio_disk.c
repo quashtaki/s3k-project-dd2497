@@ -51,7 +51,6 @@ virtio_disk_rw(struct buf *b, int write)
   s3k_err_t err;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
 
-  // Send buf pointer to monitor
   do {
 			err = s3k_sock_send(4, &msg);
       //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);

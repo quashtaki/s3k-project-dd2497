@@ -114,7 +114,7 @@ void setup_shared(uint64_t tmp)
 	// move pmp 1 to app0
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, 21, APP0_PID, 3);
 	// load pmp 2 for monitor
-	s3k_pmp_load(20, 2);
+	s3k_pmp_load(20, 3);
 	// load pmp 1 for app0
 	s3k_mon_pmp_load(MONITOR, APP0_PID, 3, 2);
 
@@ -205,10 +205,20 @@ int main(void)
 	s3k_cap_delete(HART2_TIME);
 	s3k_cap_delete(HART3_TIME);
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
+	uint64_t app0_addr = s3k_napot_encode(APP0_ADDRESS, 0x10000);
 	while (s3k_cap_derive(2, 16, s3k_mk_pmp(uart_addr, S3K_MEM_RW)))
 		;
 	while (s3k_pmp_load(16, 1))
 		;
+	// i guess we set up app0 mem for ourselves here?
+	while (s3k_cap_derive(RAM_MEM, 17, s3k_mk_pmp(app0_addr, S3K_MEM_RW)))
+		;
+	while (s3k_pmp_load(17, 2))
+		;
+
+
+
+
 	s3k_sync();
 	alt_puts("Monitor starts");
 
