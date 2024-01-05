@@ -128,7 +128,7 @@ virtio_disk_init(void)
 
   *R(VIRTIO_MMIO_GUEST_PAGE_SIZE) = PGSIZE;
 
-  // initialize queue 0.
+  // initialize queue 0.          <- QUEUE STARTS HERE
   *R(VIRTIO_MMIO_QUEUE_SEL) = 0;
   uint32 max = *R(VIRTIO_MMIO_QUEUE_NUM_MAX);
   if(max == 0) {
@@ -227,14 +227,13 @@ alloc3_desc(int *idx)
 #define SHARED_MEM 0x80050000
 #define SHARED_MEM_LEN 0x10000
 
-void
-virtio_disk_rw(struct buf *b, int write)
+void virtio_disk_rw(struct buf *b, int write)
 {
 
   
 
   uint64 sector = b->blockno * (BSIZE / 512);
-  alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
+  //alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
 
 
   /* acquire(&disk.vdisk_lock); */
@@ -263,7 +262,7 @@ virtio_disk_rw(struct buf *b, int write)
     buf0->type = VIRTIO_BLK_T_IN; // read the disk
   buf0->reserved = 0;
   buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
-  alt_printf("VIRTIO_DISK: virtio_disk_rw sector %x\n", sector);
+  //alt_printf("VIRTIO_DISK: virtio_disk_rw sector %x\n", sector);
 
   disk.desc[idx[0]].addr = (uint64) buf0; // vad är detta?
   disk.desc[idx[0]].len = sizeof(struct virtio_blk_req);
@@ -285,7 +284,7 @@ virtio_disk_rw(struct buf *b, int write)
   volatile char *shared_status = (char*) SHARED_MEM; // this is important bc it optimizes otherwise
 	char *shared_result = (char*) SHARED_MEM + 1;
 
-  alt_puts("VIRTIO_DISK: Checking with monitor...");
+  //alt_puts("VIRTIO_DISK: Checking with monitor...");
   s3k_msg_t msg;
   memcpy(msg.data, &output, sizeof(output));
 
@@ -300,11 +299,12 @@ virtio_disk_rw(struct buf *b, int write)
 
    do {
 			err = s3k_sock_send(4, &msg);
-      alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
+      //alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
+      alt_printf(" ");
 		} while (err != 0 && *shared_status == 0);
-  alt_puts("VIRTIO_DISK: Sent to monitor");
+  //alt_puts("VIRTIO_DISK: Sent to monitor");
   while (*shared_status == 0) {}
-  alt_puts("VIRTIO_DISK: Monitor replied");
+  //alt_puts("VIRTIO_DISK: Monitor replied");
   int result = *shared_result; // this one should only be read ofc
 
   if (result == 0) {
@@ -316,36 +316,56 @@ virtio_disk_rw(struct buf *b, int write)
     
   // DECIDE IF ADD TO QUEUE OR NOT
 
-  alt_puts("VIRTIO_DISK: Checked with monitor");
-  
-  disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
-  disk.desc[idx[1]].len = BSIZE;
-  if(write)
-    disk.desc[idx[1]].flags = 0; // device reads b->data
-  else
-    disk.desc[idx[1]].flags = VRING_DESC_F_WRITE; // device writes b->data
-  disk.desc[idx[1]].flags |= VRING_DESC_F_NEXT;
-  disk.desc[idx[1]].next = idx[2];
+  //alt_puts("VIRTIO_DISK: Checked with monitor");
 
-  disk.info[idx[0]].status = 0xff; // device writes 0 on success
-  disk.desc[idx[2]].addr = (uint64) &disk.info[idx[0]].status;
-  disk.desc[idx[2]].len = 1;
-  disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
-  disk.desc[idx[2]].next = 0;
+  //instead of building the queue here lets call a function in monitor and pass it via IPC
+
+  memcpy(msg.data, &output, sizeof(output));
+  alt_puts("Create and send the message to build the queue");
+  msg.data[0] = (uint64_t) b;
+  msg.data[1] = (uint64_t) write;
+
+     do {
+			err = s3k_sock_send(4, &msg);
+      //alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
+      alt_printf("Sending the queue");
+		} while (err != 0 && *shared_status == 0);
+  //alt_puts("VIRTIO_DISK: Sent to monitor");
+  while (*shared_status == 0) {}
+  //alt_puts("VIRTIO_DISK: Monitor replied");
+  //int result = *shared_result; // this one should only be read ofc
+
+  
+  //This should not happen here 
+  //First still allow and move few operations for a while
+//  disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
+//  disk.desc[idx[1]].len = BSIZE;
+//  if(write)
+//    disk.desc[idx[1]].flags = 0; // device reads b->data
+//  else
+//    disk.desc[idx[1]].flags = VRING_DESC_F_WRITE; // device writes b->data
+//  disk.desc[idx[1]].flags |= VRING_DESC_F_NEXT;
+//  disk.desc[idx[1]].next = idx[2];
+//
+//  disk.info[idx[0]].status = 0xff; // device writes 0 on success
+//  disk.desc[idx[2]].addr = (uint64) &disk.info[idx[0]].status;
+//  disk.desc[idx[2]].len = 1;
+//  disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
+//  disk.desc[idx[2]].next = 0;
 
   // record struct buf for virtio_disk_intr().
-  b->disk = 1;
-  disk.info[idx[0]].b = b;
-
-  // tell the device the first index in our chain of descriptors.
-  disk.avail->ring[disk.avail->idx % NUM] = idx[0];
-
-  __sync_synchronize();
-
-  // tell the device another avail ring entry is available.
-  disk.avail->idx += 1; // not % NUM ...
-
-  __sync_synchronize();
+//  b->disk = 1;
+//  disk.info[idx[0]].b = b;
+//
+//  // tell the device the first index in our chain of descriptors.
+//  disk.avail->ring[disk.avail->idx % NUM] = idx[0];
+//
+//  __sync_synchronize();
+//
+//  // tell the device another avail ring entry is available.
+//  disk.avail->idx += 1; // not % NUM ...
+//
+//  __sync_synchronize();
 
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 
@@ -359,7 +379,7 @@ virtio_disk_rw(struct buf *b, int write)
   disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
 
-  alt_puts("VIRTIO_DISK: virtio_disk_rw done");
+  //alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 
   /* release(&disk.vdisk_lock); */
 }

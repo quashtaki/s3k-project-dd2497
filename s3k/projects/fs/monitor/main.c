@@ -1,6 +1,7 @@
 #include "altc/altio.h"
 #include "altc/string.h"
 #include "s3k/s3k.h"
+#include "test.h"
 
 #define MONITOR_PID 0
 #define APP0_PID 1
@@ -99,12 +100,24 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 4); // give app0 client
 }
 
+void setup_socket_2(uint64_t socket, uint64_t tmp)
+{
+	s3k_cap_derive(CHANNEL, socket,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA, 0));
+	s3k_cap_derive(socket, tmp,
+		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
+				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
+	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 5); // give app0 client
+}
+
+
 void setup_shared(uint64_t tmp)
 {
 	uint64_t shared_address = s3k_napot_encode(SHARED_MEM, SHARED_MEM_LEN);
 	// derive a shared memory from ram🍴
 	s3k_err_t err = s3k_cap_derive(RAM_MEM, tmp, s3k_mk_memory(0x80050000, 0x80060000, S3K_MEM_RW));
-	alt_printf("MONITOR: shared mem derivation result %X\n", err);
+	//alt_printf("MONITOR: shared mem derivation result %X\n", err);
 	// create two pmps for shared memory
 	s3k_cap_derive(tmp, 20, s3k_mk_pmp(shared_address, S3K_MEM_RW)); // TODO: this to only read 
 	s3k_cap_derive(tmp, 21, s3k_mk_pmp(shared_address, S3K_MEM_RW));
@@ -187,6 +200,10 @@ bool inside_pmp(s3k_cap_t *cap, uint64_t addr) {
 	return (addr >= bgn && addr < end);
 }
 
+
+
+
+
 int main(void)
 {	
 	s3k_cap_delete(HART1_TIME);
@@ -198,17 +215,18 @@ int main(void)
 	while (s3k_pmp_load(16, 1))
 		;
 	s3k_sync();
-	alt_puts("Monitor starts");
+	//alt_puts("Monitor starts");
 	setup_app0(11);
 	setup_app1(12);	
 
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
+	setup_socket_2(16, 17);
 	setup_shared(15);
 
 	// monitor for app0, app1, monitor
 	
-	alt_puts("MONITOR: gave mon cap to APP0");
+	//alt_puts("MONITOR: gave mon cap to APP0");
 
 	// Order of starting these matters 💀
 	
@@ -219,51 +237,75 @@ int main(void)
 
 
 	start_app1(12);
-	
+
 
 	s3k_msg_t msg;
 	s3k_reply_t reply;
-	msg.data[0] = 1; // true or false
-
 	
 
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
-
-	int i = 0;
 	
-	while (i < 3) {
-		alt_puts("MONITOR: waiting for req");
+	msg.data[0] = 1; // true or false
+
+
+//	int i = 0;
+//	while (i < 3) {
+//		//alt_puts("MONITOR: waiting for req");
+//		do {		
+//			reply = s3k_sock_recv(13,0);
+//			if (reply.err == S3K_ERR_TIMEOUT)
+//				alt_puts("MONITOR: timeout");
+//		} while (reply.err);
+//		//alt_puts("MONITOR: received");
+//		alt_puts(" ");
+//		*shared_status = 0;
+//		s3k_mon_suspend(MONITOR, APP0_PID);
+//		
+//		//Checking the capability of app0
+//		bool result = false;
+//		for (int i = 0; i < 32; i++) {
+//			s3k_cap_t cap;
+//			//Derive the capability of app0
+//			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
+//			//checking that the capability of app0 has the permission to access the addres
+//			result = inside_pmp(&cap,(uint64_t) *reply.data);
+//			if (result) {
+//				break;
+//			}
+//		}
+//		
+//		
+//		s3k_mon_resume(MONITOR, APP0_PID);
+//		//alt_puts("MONITOR: resuming");
+//		*shared_result = result; // either 1 or 0
+//		*shared_status = 1; // always 1 if success
+//		//alt_puts("MONITOR: sent");
+//
+//		i++;
+//	}
+
+
+
+  	int j = 0;
+	while (j < 1) {
+		//alt_puts("MONITOR: waiting for req");
 		do {		
 			reply = s3k_sock_recv(13,0);
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
-		alt_puts("MONITOR: received");
+		//alt_puts("MONITOR: received");
+		alt_puts("Building the queue");
 		*shared_status = 0;
-		s3k_mon_suspend(MONITOR, APP0_PID);
-		
-		//Checking the capability of app0
-		bool result = false;
-		for (int i = 0; i < 32; i++) {
-			s3k_cap_t cap;
-			//Derive the capability of app0
-			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
-			//checking that the capability of app0 has the permission to access the addres
-			result = inside_pmp(&cap,(uint64_t) *reply.data);
-			if (result) {
-				break;
-			}
-		}
-		
-		
-		s3k_mon_resume(MONITOR, APP0_PID);
-		alt_puts("MONITOR: resuming");
-		*shared_result = result; // either 1 or 0
-		*shared_status = 1; // always 1 if success
-		alt_puts("MONITOR: sent");
 
-		i++;
+    struct buf *buffer = (struct buf *)(uintptr_t)msg.data[0];
+	int write = msg.data[1];
+	alt_puts("calling the queue");	
+    queue_build(buffer, write); // build the queue
+		
+
+		j++;
 	}
 
 

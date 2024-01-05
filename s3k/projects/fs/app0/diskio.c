@@ -12,6 +12,13 @@
 #include "virtio_disk.h"
 #include <string.h>
 
+#include "types.h"
+#include "buf.h"
+#include "virtio.h"
+#include <string.h>
+#include "virtio_disk.h"
+#include "s3k/s3k.h"
+
 /* Definitions of physical drive number for each drive */
 #define DEV_VIRTIO		0	/* Example: Map Virtiodisk to physical drive 0 */
 
@@ -165,3 +172,4 @@ DRESULT disk_ioctl (
 DWORD get_fattime (void) {
 	return 0;
 }
+
