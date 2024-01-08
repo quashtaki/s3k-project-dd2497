@@ -296,6 +296,10 @@ void virtio_disk_rw(struct buf *b, int write)
   *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
   s3k_err_t err;
 
+  alt_puts("Create and send the message to build the queue");
+  msg.data[0] = (uint64_t) b;
+  msg.data[1] = (uint64_t) write;
+  //msg.data[2] = (uint64_t) disk;
 
    do {
 			err = s3k_sock_send(4, &msg);
@@ -320,18 +324,15 @@ void virtio_disk_rw(struct buf *b, int write)
 
   //instead of building the queue here lets call a function in monitor and pass it via IPC
 
-  memcpy(msg.data, &output, sizeof(output));
-  alt_puts("Create and send the message to build the queue");
-  msg.data[0] = (uint64_t) b;
-  msg.data[1] = (uint64_t) write;
 
-     do {
-			err = s3k_sock_send(4, &msg);
-      //alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
-      alt_printf("Sending the queue");
-		} while (err != 0 && *shared_status == 0);
+
+  //   do {
+	//		err = s3k_sock_send(4, &msg);
+  //    //alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
+  //    alt_printf("Sending the queue");
+	//	} while (err != 0 && *shared_status == 0);
   //alt_puts("VIRTIO_DISK: Sent to monitor");
-  while (*shared_status == 0) {}
+  //while (*shared_status == 0) {}
   //alt_puts("VIRTIO_DISK: Monitor replied");
   //int result = *shared_result; // this one should only be read ofc
 
@@ -366,6 +367,8 @@ void virtio_disk_rw(struct buf *b, int write)
 //  disk.avail->idx += 1; // not % NUM ...
 //
 //  __sync_synchronize();
+
+alt_puts("queue built");
 
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 

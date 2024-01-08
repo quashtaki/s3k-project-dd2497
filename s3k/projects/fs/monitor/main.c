@@ -19,6 +19,7 @@
 #define MONITOR 8
 #define CHANNEL 9
 
+#define MONITOR_ADDRESS 0x80010000
 #define APP0_ADDRESS 0x80020000
 #define APP1_ADDRESS 0x80030000
 
@@ -36,6 +37,11 @@ void setup_app0(uint64_t tmp)
 	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(app0_addr, S3K_MEM_RWX));
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 0);
 	s3k_mon_pmp_load(MONITOR, APP0_PID, 0, 0);
+
+	//uint64_t mon_addr = s3k_napot_encode(MONITOR_ADDRESS, 0x10000);
+	//s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(mon_addr, S3K_MEM_RWX));
+	//s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, MONITOR_PID, 0);	
+	//s3k_mon_pmp_load(MONITOR, MONITOR_PID, 0, 0); //add it for the monitor as well
 	
 
 	// Derive a PMP capability for uart
@@ -221,7 +227,7 @@ int main(void)
 
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
-	setup_socket_2(16, 17);
+	//setup_socket_2(16, 17);
 	setup_shared(15);
 
 	// monitor for app0, app1, monitor
@@ -249,46 +255,8 @@ int main(void)
 	msg.data[0] = 1; // true or false
 
 
-//	int i = 0;
-//	while (i < 3) {
-//		//alt_puts("MONITOR: waiting for req");
-//		do {		
-//			reply = s3k_sock_recv(13,0);
-//			if (reply.err == S3K_ERR_TIMEOUT)
-//				alt_puts("MONITOR: timeout");
-//		} while (reply.err);
-//		//alt_puts("MONITOR: received");
-//		alt_puts(" ");
-//		*shared_status = 0;
-//		s3k_mon_suspend(MONITOR, APP0_PID);
-//		
-//		//Checking the capability of app0
-//		bool result = false;
-//		for (int i = 0; i < 32; i++) {
-//			s3k_cap_t cap;
-//			//Derive the capability of app0
-//			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
-//			//checking that the capability of app0 has the permission to access the addres
-//			result = inside_pmp(&cap,(uint64_t) *reply.data);
-//			if (result) {
-//				break;
-//			}
-//		}
-//		
-//		
-//		s3k_mon_resume(MONITOR, APP0_PID);
-//		//alt_puts("MONITOR: resuming");
-//		*shared_result = result; // either 1 or 0
-//		*shared_status = 1; // always 1 if success
-//		//alt_puts("MONITOR: sent");
-//
-//		i++;
-//	}
-
-
-
-  	int j = 0;
-	while (j < 1) {
+	int i = 0;
+	while (i < 3) {
 		//alt_puts("MONITOR: waiting for req");
 		do {		
 			reply = s3k_sock_recv(13,0);
@@ -296,17 +264,59 @@ int main(void)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
 		//alt_puts("MONITOR: received");
-		alt_puts("Building the queue");
+		alt_puts(" ");
 		*shared_status = 0;
-
-    struct buf *buffer = (struct buf *)(uintptr_t)msg.data[0];
-	int write = msg.data[1];
-	alt_puts("calling the queue");	
-    queue_build(buffer, write); // build the queue
+		s3k_mon_suspend(MONITOR, APP0_PID);
 		
+		//Checking the capability of app0
+		bool result = false;
+		for (int i = 0; i < 32; i++) {
+			s3k_cap_t cap;
+			//Derive the capability of app0
+			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
+			//checking that the capability of app0 has the permission to access the addres
+			result = inside_pmp(&cap,(uint64_t) *reply.data);
+			if (result) {
+				struct buf *b = (struct buf *)(uintptr_t)msg.data[1];
+				int write = msg.data[2];
+				alt_puts("calling the queue");	
+    			queue_build(b, write);
+				break;
+			}
+		}
+		
+		
+		s3k_mon_resume(MONITOR, APP0_PID);
+		//alt_puts("MONITOR: resuming");
+		*shared_result = result; // either 1 or 0
+		*shared_status = 1; // always 1 if success
+		//alt_puts("MONITOR: sent");
 
-		j++;
+		i++;
 	}
+
+
+
+//  	int j = 0;
+//	while (j < 1) {
+//		//alt_puts("MONITOR: waiting for req");
+//		do {		
+//			reply = s3k_sock_recv(13,0);
+//			if (reply.err == S3K_ERR_TIMEOUT)
+//				alt_puts("MONITOR: timeout");
+//		} while (reply.err);
+//		//alt_puts("MONITOR: received");
+//		alt_puts("Building the queue");
+//		*shared_status = 0;
+//
+//    struct buf *buffer = (struct buf *)(uintptr_t)msg.data[0];
+//	int write = msg.data[1];
+//	alt_puts("calling the queue");	
+//    queue_build(buffer, write); // build the queue
+//		
+//
+//		j++;
+//	}
 
 
 	s3k_mon_suspend(MONITOR, APP1_PID);
