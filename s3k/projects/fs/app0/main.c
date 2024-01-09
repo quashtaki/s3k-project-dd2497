@@ -40,7 +40,6 @@ int main(void)
 	UINT bw;
 	FRESULT fr;
 	FIL Fil;			/* File object needed for each open file */
-
 	
 	char buffer[1024];
 	
@@ -49,7 +48,6 @@ int main(void)
 	alt_printf("APP0: fr rn?: %d\n", fr);
 	if (fr == FR_OK) {
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */	
-		alt_printf("APP0: Read %d bytes\n", bw);
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
 			buffer[bw] = '\0';

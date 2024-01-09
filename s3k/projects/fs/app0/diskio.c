@@ -10,8 +10,9 @@
 #include "ff.h"			/* Obtains integer types */
 #include "diskio.h"		/* Declarations of disk functions */
 #include "virtio_disk.h"
-#include <string.h>
 #include "altc/altio.h"
+#include <string.h>
+
 
 /* Definitions of physical drive number for each drive */
 #define DEV_VIRTIO		0	/* Example: Map Virtiodisk to physical drive 0 */
@@ -25,7 +26,6 @@ DSTATUS disk_status (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
-	alt_puts("DISKIO: Getting status from disk");
 	switch (pdrv) {
 	case DEV_VIRTIO :
 		if (virtio_disk_status())
@@ -76,10 +76,7 @@ DRESULT disk_read (
 			buffer.blockno = sector;
 			memset(buffer.data, 0, sizeof(buffer.data));
 			virtio_disk_rw(&buffer, 0);
-			// THIS SOMETIMES DOESNT WANT TO WORK EVEN THOUGH PMP IS SET UP
-			alt_puts("DISKIO: read");
 			memcpy(buff, buffer.data, 512);
-			alt_puts("DISKIO: copied");
 			buff += 512;
 		} while (--count);
 		alt_puts("DISKIO: Done reading");

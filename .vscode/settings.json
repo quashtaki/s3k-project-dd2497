@@ -21,6 +21,8 @@
         "setup_queue.h": "c",
         "s3k.h": "c",
         "altio.h": "c",
-        "coroutine": "c"
+        "coroutine": "c",
+        "cstring": "c",
+        "*.def": "c"
     }
 }

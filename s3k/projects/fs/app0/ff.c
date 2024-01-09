@@ -3032,7 +3032,7 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 	for (;;) {
 		c = (BYTE)p[si++];				/* Get a byte */
 		if (c <= ' ') break; 			/* Break if end of the path name */
-		if (IsSeparator(c)) {			/* Break if a separator is found */
+		if (IsSeparator(c)) {					/* Break if a separator is found */
 			while (IsSeparator(p[si])) si++;	/* Skip duplicated separator if exist */
 			break;
 		}
@@ -3061,7 +3061,9 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 			sfn[i++] = c;
 		}
 	}
+	alt_puts("this?");
 	*path = &p[si];						/* Return pointer to the next segment */
+	alt_puts("that?");
 	if (i == 0) return FR_INVALID_NAME;	/* Reject nul string */
 
 	if (sfn[0] == DDEM) sfn[0] = RDDEM;	/* If the first character collides with DDEM, replace it with RDDEM */
@@ -3086,8 +3088,6 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	FRESULT res;
 	BYTE ns;
 	FATFS *fs = dp->obj.fs;
-
-	alt_puts("follow_path: start");
 
 #if FF_FS_RPATH != 0
 	if (!IsSeparator(*path) && (FF_STR_VOLUME_ID != 2 || !IsTerminator(*path))) {	/* Without heading separator */
@@ -3114,15 +3114,15 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	}
 #endif
 #endif
-	alt_puts("follow_path: before dir_sdi");
 	if ((UINT)*path < ' ') {				/* Null path name is the origin directory itself */
 		dp->fn[NSFLAG] = NS_NONAME;
 		res = dir_sdi(dp, 0);
-		alt_puts("follow_path: after dir_sdi");
 	} else {		
-		alt_puts("follow_path: in else");						/* Follow path */
+					/* Follow path */
 		for (;;) {
+			alt_puts("follow_path: in for");
 			res = create_name(dp, &path);	/* Get a segment name of the path */
+			alt_puts("follow_path: after create");
 			if (res != FR_OK) break;
 			res = dir_find(dp);				/* Find an object with the segment name */
 			ns = dp->fn[NSFLAG];
@@ -3156,8 +3156,6 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 			}
 		}
 	}
-
-	alt_puts("follow_path: end");
 
 	return res;
 }
@@ -3961,8 +3959,6 @@ FRESULT f_read (
 	FSIZE_t remain;
 	UINT rcnt, cc, csect;
 	BYTE *rbuff = (BYTE*)buff;
-
-	alt_puts("f_read: start ");
 
 	*br = 0;	/* Clear read byte counter */
 	res = validate(&fp->obj, &fs);				/* Check validity of the file object */

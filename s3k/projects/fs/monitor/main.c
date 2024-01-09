@@ -252,6 +252,7 @@ int main(void)
 		alt_puts("MONITOR: waiting for req");
 		do {		
 			reply = s3k_sock_recv(13,0);
+			alt_puts("MONITOR: wait");
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
