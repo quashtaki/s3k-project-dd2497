@@ -23,7 +23,10 @@
 #define APP1_ADDRESS 0x80030000
 
 #define SHARED_MEM 0x80050000
-#define DISK_ADDRESS 0x80050000
+
+#define WAIT_ADDRESS 0x80050000
+#define DISK_ADDRESS 0x80050001
+
 #define SHARED_MEM_LEN 0x10000
 
 void setup_app0(uint64_t tmp)
@@ -240,7 +243,9 @@ int main(void)
 	s3k_reply_t reply;
 	int i = 0;
 	alt_puts("MONITOR: starting loop, stuck for now");
-	
+
+	volatile char *waiting = (char*) WAIT_ADDRESS;
+	*waiting = 0;
 	// this loop is to start app2 after the attack
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
@@ -251,6 +256,7 @@ int main(void)
 		} while (reply.err);
 		alt_puts("MONITOR: received");
 		s3k_mon_suspend(MONITOR, APP0_PID);
+		*waiting = 1;
 		alt_puts("MONITOR: suspended");
 		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
 		alt_printf("MONITOR: received buf %X\n", b);

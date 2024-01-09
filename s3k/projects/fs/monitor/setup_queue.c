@@ -12,7 +12,8 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define DISK_ADDRESS 0x80050000
+#define WAIT_ADDRESS 0x80050000
+#define DISK_ADDRESS 0x80050001
 
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
 
@@ -189,7 +190,7 @@ void read_write(struct buf *b, int write)
   buf0->reserved = 0;
   buf0->sector = sector; // Är sector för filsystemet? Eller för disk?
 
-  disk->desc[idx[0]].addr = (uint64) buf0; // vad är detta?
+  disk->desc[idx[0]].addr = (uint64) buf0;
   disk->desc[idx[0]].len = sizeof(struct virtio_blk_req);
   disk->desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk->desc[idx[0]].next = idx[1];
@@ -220,9 +221,13 @@ void read_write(struct buf *b, int write)
   b->disk = 1; // can we do this earlier??? otherwise we need comms
   disk->info[idx[0]].b = b;
 
+  volatile char *waiting = (char*) WAIT_ADDRESS;
+  *waiting = 0;
+
   // tell the device the first index in our chain of descriptors.
   disk->avail->ring[disk->avail->idx % NUM] = idx[0];
-
+  
+  alt_puts("MONITOR: deeper - is this where disk takes over?");
   __sync_synchronize();
 
   // tell the device another avail ring entry is available.
@@ -244,7 +249,6 @@ void read_write(struct buf *b, int write)
   free_chain(idx[0]);
 
   alt_puts("MONITOR: read_write done");
-
 }
 
 void

@@ -27,7 +27,8 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define DISK_ADDRESS 0x80050000
+#define WAIT_ADDRESS 0x80050000
+#define DISK_ADDRESS 0x80050001
 
 // set up pages global in monitor to shift where its read from
 
@@ -47,6 +48,8 @@ virtio_disk_rw(struct buf *b, int write)
   msg.data[0] = (uint64_t) b;
   msg.data[1] = (uint64_t) write;
 
+  volatile char *waiting = (char*) WAIT_ADDRESS;
+
   s3k_reply_t reply;
   s3k_err_t err;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
@@ -56,10 +59,12 @@ virtio_disk_rw(struct buf *b, int write)
       //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
 		} while (err != 0);
   // instead of a waiting bit we should be able to look at the data structure like in the other one
-
+  alt_puts("VIRTIO_DISK: regular wait");
+  while(*waiting == 1) {}
+  alt_puts("VIRTIO_DISK: regualr done, disk time");
   while(b->disk == 1) {} // this should work - monitor is gonna switch this when done
-
+  alt_puts("VIRTIO_DISK: disk done");
   // i guess the monitor never needs to restart app0 if it tries to cheat
-  // this is similar to how it works currently with the 
+  // this is similar to how it works in when your trying to do it via s3k
   alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 }
