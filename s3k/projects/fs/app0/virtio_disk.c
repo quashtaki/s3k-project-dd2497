@@ -27,8 +27,8 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define WAIT_ADDRESS 0x80050000
-#define DISK_ADDRESS 0x80050001
+#define WAIT_ADDRESS 0x80060000 - 1
+#define DISK_ADDRESS 0x80050000
 
 // set up pages global in monitor to shift where its read from
 

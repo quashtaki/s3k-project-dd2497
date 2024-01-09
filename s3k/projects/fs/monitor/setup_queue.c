@@ -12,8 +12,8 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define WAIT_ADDRESS 0x80050000
-#define DISK_ADDRESS 0x80050001
+#define WAIT_ADDRESS 0x80060000 - 1
+#define DISK_ADDRESS 0x80050000
 
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
 
@@ -86,8 +86,6 @@ alloc3_desc(int *idx)
 void
 initialize(void)
 {
-  alt_puts("DISK AT:");
-  alt_printf("%X\n", disk);
   uint32 status = 0;
   /* initlock(&disk->vdisk_lock, "virtio_disk"); */
   if(*R(VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
@@ -213,6 +211,7 @@ void read_write(struct buf *b, int write)
 
   disk->info[idx[0]].status = 0xff; // device writes 0 on success
   disk->desc[idx[2]].addr = (uint64) &disk->info[idx[0]].status;
+  alt_printf("MONITOR: addr2: %X\n", disk->desc[idx[2]].addr);
   disk->desc[idx[2]].len = 1;
   disk->desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
   disk->desc[idx[2]].next = 0;
@@ -226,7 +225,7 @@ void read_write(struct buf *b, int write)
 
   // tell the device the first index in our chain of descriptors.
   disk->avail->ring[disk->avail->idx % NUM] = idx[0];
-  
+
   alt_puts("MONITOR: deeper - is this where disk takes over?");
   __sync_synchronize();
 
@@ -236,8 +235,6 @@ void read_write(struct buf *b, int write)
   __sync_synchronize();
 
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
-
-  alt_puts("doing intr");
 
   // Wait for virtio_disk_intr() to say request has finished.
   while(b->disk == 1) {
@@ -260,16 +257,15 @@ interrupt(void)
   // the "used" ring, in which case we may process the new
   // completion entries in this interrupt, and have nothing to do
   // in the next interrupt, which is harmless.
+
+  alt_puts("MONITOR: interrupt");
+
   *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
 
   __sync_synchronize();
 
-  // the device increments disk.used->idx when it
-  // adds an entry to the used ring.
-
-  struct disk *diskPtr = (struct disk *) DISK_ADDRESS;
-
   while(disk->used_idx != disk->used->idx){
+    
     __sync_synchronize();
     int id = disk->used->ring[disk->used_idx % NUM].id;
 
@@ -284,7 +280,8 @@ interrupt(void)
 
     disk->used_idx += 1;
   }
-
+;
+  alt_puts("MONITOR: interrupt done");
   /* release(&disk.vdisk_lock); */
 }
 

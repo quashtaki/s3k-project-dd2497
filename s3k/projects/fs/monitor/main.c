@@ -24,8 +24,8 @@
 
 #define SHARED_MEM 0x80050000
 
-#define WAIT_ADDRESS 0x80050000
-#define DISK_ADDRESS 0x80050001
+#define WAIT_ADDRESS 0x80060000 - 1
+#define DISK_ADDRESS 0x80050000
 
 #define SHARED_MEM_LEN 0x10000
 
@@ -259,10 +259,7 @@ int main(void)
 		*waiting = 1;
 		alt_puts("MONITOR: suspended");
 		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
-		alt_printf("MONITOR: received buf %X\n", b);
 		int write = (int) reply.data[1]; // we cast to int
-		
-		alt_printf("MONITOR: data %X\n", &b->blockno);
 		alt_puts("MONITOR: checking memory access");
 
 		//Checking the capability of app0
