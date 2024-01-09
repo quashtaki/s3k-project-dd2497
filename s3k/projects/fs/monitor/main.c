@@ -24,7 +24,7 @@
 
 #define SHARED_MEM 0x80050000
 
-#define WAIT_ADDRESS 0x80060000 - 1
+#define TOGGLE_ADDRESS 0x80030000 - 1
 #define DISK_ADDRESS 0x80050000
 
 #define SHARED_MEM_LEN 0x10000
@@ -198,6 +198,9 @@ bool inside_cap(s3k_cap_t *cap, uint64_t addr) {
 	if (priv != S3K_MEM_W && priv != S3K_MEM_RW && priv != S3K_MEM_RWX ) {
 		return false;
 	}
+	if (addr >= bgn && addr < end) {
+		alt_printf("MONITOR: inside_cap: addr:%X bgn:%X end:%X\n", addr, bgn, end);
+	}
 	return (addr >= bgn && addr < end);
 }
 
@@ -238,14 +241,12 @@ int main(void)
 	
 	start_app0(11);
 	start_app1(12);
-	
 
 	s3k_reply_t reply;
 	int i = 0;
 	alt_puts("MONITOR: starting loop, stuck for now");
 
-	volatile char *waiting = (char*) WAIT_ADDRESS;
-	*waiting = 0;
+	volatile char *toggle = (char*) TOGGLE_ADDRESS;
 	// this loop is to start app2 after the attack
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
@@ -256,7 +257,6 @@ int main(void)
 		} while (reply.err);
 		alt_puts("MONITOR: received");
 		s3k_mon_suspend(MONITOR, APP0_PID);
-		*waiting = 1;
 		alt_puts("MONITOR: suspended");
 		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
 		int write = (int) reply.data[1]; // we cast to int
@@ -284,11 +284,12 @@ int main(void)
 		alt_puts("MONITOR: allowed access to memory");
 		read_write(b, write);
 		s3k_mon_resume(MONITOR, APP0_PID);
-		alt_puts("MONITOR: sent");
 
+		*toggle = 0;
+		alt_puts("MONITOR: done");
+	
 		i++;
 	}
-
 
 	s3k_mon_suspend(MONITOR, APP1_PID);
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80030000);

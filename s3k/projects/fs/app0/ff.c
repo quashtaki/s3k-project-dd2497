@@ -18,7 +18,7 @@
 /
 /----------------------------------------------------------------------------*/
 
-
+#include "altc/altio.h"
 #include <string.h>
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
@@ -3087,6 +3087,7 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	BYTE ns;
 	FATFS *fs = dp->obj.fs;
 
+	alt_puts("follow_path: start");
 
 #if FF_FS_RPATH != 0
 	if (!IsSeparator(*path) && (FF_STR_VOLUME_ID != 2 || !IsTerminator(*path))) {	/* Without heading separator */
@@ -3113,12 +3114,13 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	}
 #endif
 #endif
-
+	alt_puts("follow_path: before dir_sdi");
 	if ((UINT)*path < ' ') {				/* Null path name is the origin directory itself */
 		dp->fn[NSFLAG] = NS_NONAME;
 		res = dir_sdi(dp, 0);
-
-	} else {								/* Follow path */
+		alt_puts("follow_path: after dir_sdi");
+	} else {		
+		alt_puts("follow_path: in else");						/* Follow path */
 		for (;;) {
 			res = create_name(dp, &path);	/* Get a segment name of the path */
 			if (res != FR_OK) break;
@@ -3154,6 +3156,8 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 			}
 		}
 	}
+
+	alt_puts("follow_path: end");
 
 	return res;
 }
@@ -3474,7 +3478,6 @@ static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	bsect = fs->winsect;					/* Volume offset in the hosting physical drive */
 
 	/* An FAT volume is found (bsect). Following code initializes the filesystem object */
-
 #if FF_FS_EXFAT
 	if (fmt == 1) {
 		QWORD maxlba;
@@ -3764,11 +3767,15 @@ FRESULT f_open (
 	
 	/* Get logical drive number */
 	mode &= FF_FS_READONLY ? FA_READ : FA_READ | FA_WRITE | FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_OPEN_ALWAYS | FA_OPEN_APPEND;
+	alt_puts("f_open: mount_volume start ");
 	res = mount_volume(&path, &fs, mode);
+	alt_puts("f_open: mount_volume returned ");
 	if (res == FR_OK) {
+		alt_puts("f_open: mount_volume ok ");
 		dj.obj.fs = fs;
 		INIT_NAMBUF(fs);
 		res = follow_path(&dj, path);	/* Follow the file path */
+		alt_puts("f_open: mount_volume path followed ");
 #if !FF_FS_READONLY	/* Read/Write configuration */
 		if (res == FR_OK) {
 			if (dj.fn[NSFLAG] & NS_NONAME) {	/* Origin directory itself? */
@@ -3955,6 +3962,7 @@ FRESULT f_read (
 	UINT rcnt, cc, csect;
 	BYTE *rbuff = (BYTE*)buff;
 
+	alt_puts("f_read: start ");
 
 	*br = 0;	/* Clear read byte counter */
 	res = validate(&fp->obj, &fs);				/* Check validity of the file object */

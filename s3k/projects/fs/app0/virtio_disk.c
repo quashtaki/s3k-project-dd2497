@@ -27,15 +27,13 @@
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
-#define WAIT_ADDRESS 0x80060000 - 1
+#define TOGGLE_ADDRESS 0x80030000 - 1
 #define DISK_ADDRESS 0x80050000
 
 // set up pages global in monitor to shift where its read from
 
 int virtio_disk_status() {
-  alt_puts("Getting status from disk - but probably failing bc no access to that mem region");
   struct disk *disk = (struct disk *) DISK_ADDRESS;
-  alt_printf("disk->initialised: %X\n", disk->initialised);
   return disk->initialised;
 }
 
@@ -48,23 +46,16 @@ virtio_disk_rw(struct buf *b, int write)
   msg.data[0] = (uint64_t) b;
   msg.data[1] = (uint64_t) write;
 
-  volatile char *waiting = (char*) WAIT_ADDRESS;
-
+  volatile char *toggle = (char*) TOGGLE_ADDRESS;
   s3k_reply_t reply;
   s3k_err_t err;
   s3k_reg_write(S3K_REG_SERVTIME, 4500);
-
+  *toggle = 1;
   do {
 			err = s3k_sock_send(4, &msg);
       //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
 		} while (err != 0);
   // instead of a waiting bit we should be able to look at the data structure like in the other one
-  alt_puts("VIRTIO_DISK: regular wait");
-  while(*waiting == 1) {}
-  alt_puts("VIRTIO_DISK: regualr done, disk time");
-  while(b->disk == 1) {} // this should work - monitor is gonna switch this when done
-  alt_puts("VIRTIO_DISK: disk done");
-  // i guess the monitor never needs to restart app0 if it tries to cheat
-  // this is similar to how it works in when your trying to do it via s3k
+  while(*toggle == 1) {}
   alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 }

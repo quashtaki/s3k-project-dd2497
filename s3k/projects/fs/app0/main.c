@@ -45,8 +45,11 @@ int main(void)
 	char buffer[1024];
 	
 	fr = f_open(&Fil, "app2.bin", FA_READ);
+	alt_puts("APP0: File opened");
+	alt_printf("APP0: fr rn?: %d\n", fr);
 	if (fr == FR_OK) {
-		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */
+		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */	
+		alt_printf("APP0: Read %d bytes\n", bw);
 		fr = f_close(&Fil);							/* Close the file */
 		if (fr == FR_OK) {
 			buffer[bw] = '\0';

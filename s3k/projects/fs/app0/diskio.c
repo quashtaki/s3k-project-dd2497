@@ -25,6 +25,7 @@ DSTATUS disk_status (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
+	alt_puts("DISKIO: Getting status from disk");
 	switch (pdrv) {
 	case DEV_VIRTIO :
 		if (virtio_disk_status())
@@ -74,11 +75,14 @@ DRESULT disk_read (
 		do {
 			buffer.blockno = sector;
 			memset(buffer.data, 0, sizeof(buffer.data));
-			alt_printf("DISKIO: Writing to address %X\n", &buffer.data);
 			virtio_disk_rw(&buffer, 0);
+			// THIS SOMETIMES DOESNT WANT TO WORK EVEN THOUGH PMP IS SET UP
+			alt_puts("DISKIO: read");
 			memcpy(buff, buffer.data, 512);
+			alt_puts("DISKIO: copied");
 			buff += 512;
 		} while (--count);
+		alt_puts("DISKIO: Done reading");
 		return RES_OK;
 	}
 
@@ -132,6 +136,8 @@ DRESULT disk_ioctl (
 )
 {
 	DRESULT res;
+
+	alt_puts("Whats going on here?");
 
 
 	if (disk_status(drv) & STA_NOINIT) return RES_NOTRDY;	/* Check if card is in the socket */
