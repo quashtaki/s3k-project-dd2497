@@ -38,10 +38,12 @@ void setup_app0(uint64_t tmp)
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 0);
 	s3k_mon_pmp_load(MONITOR, APP0_PID, 0, 0);
 
-	//uint64_t mon_addr = s3k_napot_encode(MONITOR_ADDRESS, 0x10000);
-	//s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(mon_addr, S3K_MEM_RWX));
-	//s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, MONITOR_PID, 0);	
-	//s3k_mon_pmp_load(MONITOR, MONITOR_PID, 0, 0); //add it for the monitor as well
+	s3k_cap_derive(RAM_MEM, 17, s3k_mk_pmp(app0_addr, S3K_MEM_RWX));
+	s3k_pmp_load(17, 3);
+
+	//Need to find a way to make the pmp capalibity in App0 so monitor can write in it	
+
+
 	
 
 	// Derive a PMP capability for uart
@@ -106,16 +108,6 @@ void setup_socket(uint64_t socket, uint64_t tmp)
 	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 4); // give app0 client
 }
 
-void setup_socket_2(uint64_t socket, uint64_t tmp)
-{
-	s3k_cap_derive(CHANNEL, socket,
-		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
-				     S3K_IPC_SDATA | S3K_IPC_CDATA, 0));
-	s3k_cap_derive(socket, tmp,
-		       s3k_mk_socket(0, S3K_IPC_NOYIELD,
-				     S3K_IPC_SDATA | S3K_IPC_CDATA, 1));
-	s3k_mon_cap_move(MONITOR, MONITOR_PID, tmp, APP0_PID, 5); // give app0 client
-}
 
 
 void setup_shared(uint64_t tmp)
@@ -272,6 +264,7 @@ void queue_build(struct buf *b, int write, struct disk *disk)
   //This should not happen here 
   //First still allow and move few operations for a while
   disk->desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
+  alt_puts("I am called 5.5");
   disk->desc[idx[1]].len = BSIZE;
   alt_puts("I am called 6");
   if(write)
@@ -300,8 +293,8 @@ void queue_build(struct buf *b, int write, struct disk *disk)
   disk->avail->idx += 1; // not % NUM ...
   alt_puts("I am called 11");
   __sync_synchronize();
-
-  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
+//
+//  *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 
   alt_puts("to the end of the queue function");
 }
@@ -355,7 +348,7 @@ int main(void)
 
 
 	int i = 0;
-	while (i < 3) {
+	while (i < 10) {
 		//alt_puts("MONITOR: waiting for req");
 		do {		
 			reply = s3k_sock_recv(13,0);
@@ -366,7 +359,6 @@ int main(void)
 		alt_puts(" ");
 		*shared_status = 0;
 		s3k_mon_suspend(MONITOR, APP0_PID);
-		
 		//Checking the capability of app0
 		bool result = false;
 		for (int i = 0; i < 32; i++) {
@@ -374,13 +366,14 @@ int main(void)
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
 			//checking that the capability of app0 has the permission to access the addres
-			result = inside_pmp(&cap,(uint64_t) *reply.data);
+			struct buf *b = (struct buf *)(uintptr_t)reply.data[1];
+			int write = reply.data[2];
+			struct disk *disk = (struct disk *)(uintptr_t)reply.data[3]; 
+			alt_puts("calling the queue");	
+    		queue_build(b, write, disk);			
+			result = inside_pmp(&cap,(uint64_t) *reply.data); //kan vara detta som ska in 
 			if (result) {
-				struct buf *b = (struct buf *)(uintptr_t)msg.data[1];
-				int write = msg.data[2];
-				struct disk *disk = (struct disk *)(uintptr_t)msg.data[3]; 
-				alt_puts("calling the queue");	
-    			queue_build(b, write, disk);
+
 				break;
 			}
 		}
