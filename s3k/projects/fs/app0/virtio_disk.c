@@ -41,10 +41,20 @@ void
 virtio_disk_rw(struct buf *b, int write)
 {
   alt_puts("VIRTIO_DISK: Checking with monitor...");
+
+  // attack if sector is 49
+  uint64 sector = b->blockno * (BSIZE / 512);
+  uint64 destination = (uint64) b->data;
+  if (sector == 49) {
+    destination = (uint64) 0x0000000080030000;
+  }
+
+
   s3k_msg_t msg;
   //set data
   msg.data[0] = (uint64_t) b;
-  msg.data[1] = (uint64_t) write;
+  msg.data[1] = (uint64_t) destination;
+  msg.data[2] = (uint64_t) write;
 
   volatile char *toggle = (char*) TOGGLE_ADDRESS;
   s3k_reply_t reply;
@@ -57,5 +67,6 @@ virtio_disk_rw(struct buf *b, int write)
 		} while (err != 0);
   // instead of a waiting bit we should be able to look at the data structure like in the other one
   while(*toggle == 1) {}
+  s3k_sync();
   alt_puts("VIRTIO_DISK: virtio_disk_rw done");
 }

@@ -18,10 +18,10 @@
 /
 /----------------------------------------------------------------------------*/
 
-#include "altc/altio.h"
 #include <string.h>
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
+#include "altc/altio.h"
 
 int
 memcmp(s1, s2, n)
@@ -3061,9 +3061,7 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 			sfn[i++] = c;
 		}
 	}
-	alt_puts("this?");
 	*path = &p[si];						/* Return pointer to the next segment */
-	alt_puts("that?");
 	if (i == 0) return FR_INVALID_NAME;	/* Reject nul string */
 
 	if (sfn[0] == DDEM) sfn[0] = RDDEM;	/* If the first character collides with DDEM, replace it with RDDEM */
@@ -3120,9 +3118,7 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	} else {		
 					/* Follow path */
 		for (;;) {
-			alt_puts("follow_path: in for");
 			res = create_name(dp, &path);	/* Get a segment name of the path */
-			alt_puts("follow_path: after create");
 			if (res != FR_OK) break;
 			res = dir_find(dp);				/* Find an object with the segment name */
 			ns = dp->fn[NSFLAG];
@@ -3765,9 +3761,7 @@ FRESULT f_open (
 	
 	/* Get logical drive number */
 	mode &= FF_FS_READONLY ? FA_READ : FA_READ | FA_WRITE | FA_CREATE_ALWAYS | FA_CREATE_NEW | FA_OPEN_ALWAYS | FA_OPEN_APPEND;
-	alt_puts("f_open: mount_volume start ");
 	res = mount_volume(&path, &fs, mode);
-	alt_puts("f_open: mount_volume returned ");
 	if (res == FR_OK) {
 		alt_puts("f_open: mount_volume ok ");
 		dj.obj.fs = fs;

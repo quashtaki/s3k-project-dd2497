@@ -45,7 +45,7 @@ int main(void)
 	
 	fr = f_open(&Fil, "app2.bin", FA_READ);
 	alt_puts("APP0: File opened");
-	alt_printf("APP0: fr rn?: %d\n", fr);
+	alt_printf("APP0: fr rn?: %X\n", fr);
 	if (fr == FR_OK) {
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */	
 		fr = f_close(&Fil);							/* Close the file */

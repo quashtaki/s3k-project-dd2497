@@ -7,7 +7,7 @@
 #define SETUP_QUEUE_H
 
 void initialize(void);
-void read_write(struct buf *b, int write);
+void read_write(struct buf *b, int write, uint64_t destination);
 void interrupt(void);
 
 #define PGSIZE 4096

@@ -10,7 +10,6 @@
 #include "ff.h"			/* Obtains integer types */
 #include "diskio.h"		/* Declarations of disk functions */
 #include "virtio_disk.h"
-#include "altc/altio.h"
 #include <string.h>
 
 
@@ -79,7 +78,6 @@ DRESULT disk_read (
 			memcpy(buff, buffer.data, 512);
 			buff += 512;
 		} while (--count);
-		alt_puts("DISKIO: Done reading");
 		return RES_OK;
 	}
 
@@ -133,10 +131,6 @@ DRESULT disk_ioctl (
 )
 {
 	DRESULT res;
-
-	alt_puts("Whats going on here?");
-
-
 	if (disk_status(drv) & STA_NOINIT) return RES_NOTRDY;	/* Check if card is in the socket */
 
 	res = RES_ERROR;

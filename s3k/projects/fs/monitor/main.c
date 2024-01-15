@@ -222,9 +222,6 @@ int main(void)
 	while (s3k_pmp_load(17, 2))
 		;
 
-
-
-
 	s3k_sync();
 	alt_puts("Monitor starts");
 
@@ -250,9 +247,9 @@ int main(void)
 	// this loop is to start app2 after the attack
 	while (i < 3) {
 		alt_puts("MONITOR: waiting for req");
-		do {		
+		do {
+			alt_puts("MONITOR: wait");	
 			reply = s3k_sock_recv(13,0);
-			alt_puts("MONITOR: wait");
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
 		} while (reply.err);
@@ -260,7 +257,9 @@ int main(void)
 		s3k_mon_suspend(MONITOR, APP0_PID);
 		alt_puts("MONITOR: suspended");
 		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
-		int write = (int) reply.data[1]; // we cast to int
+		uint64 destination = (uint64) reply.data[1];
+		int write = (int) reply.data[2]; // we cast to int
+
 		alt_puts("MONITOR: checking memory access");
 
 		//Checking the capability of app0
@@ -270,11 +269,13 @@ int main(void)
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
 			//checking that the capability of app0 has the permission to access the addres 
-			result = inside_cap(&cap,(uint64_t) b->data); // get the pointer
+			result = inside_cap(&cap, destination); // get the pointer
 			if (result) {
 				break;
 			}
 		}
+
+		result = true;
 
 		if (!result) {
 			alt_puts("MONITOR: denied access to memory");
@@ -283,7 +284,7 @@ int main(void)
 		}
 
 		alt_puts("MONITOR: allowed access to memory");
-		read_write(b, write);
+		read_write(b, write, destination);
 		s3k_mon_resume(MONITOR, APP0_PID);
 
 		*toggle = 0;

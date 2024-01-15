@@ -150,7 +150,7 @@ initialize(void)
   alt_puts("Disk Initialization completed\n");
 }
 
-void read_write(struct buf *b, int write)
+void read_write(struct buf *b, int write, uint64_t destination)
 {
   alt_puts("MONITOR: read-write");
   // here we basically need the functionality of virtio_disk_rw + virtio_disk_intr
@@ -200,7 +200,7 @@ void read_write(struct buf *b, int write)
   //   output = (uint64) 0x0000000080030000;
   // }
 
-  disk->desc[idx[1]].addr = (uint64) b->data;
+  disk->desc[idx[1]].addr = (uint64) destination;
   disk->desc[idx[1]].len = BSIZE;
   if(write)
     disk->desc[idx[1]].flags = 0; // device reads b->data
@@ -223,7 +223,6 @@ void read_write(struct buf *b, int write)
   // tell the device the first index in our chain of descriptors.
   disk->avail->ring[disk->avail->idx % NUM] = idx[0];
 
-  alt_puts("MONITOR: deeper - is this where disk takes over?");
   __sync_synchronize();
 
   // tell the device another avail ring entry is available.
@@ -237,7 +236,6 @@ void read_write(struct buf *b, int write)
   while(b->disk == 1) {
     interrupt();
   }
-
 
   disk->info[idx[0]].b = 0;
   free_chain(idx[0]);
@@ -255,7 +253,7 @@ interrupt(void)
   // completion entries in this interrupt, and have nothing to do
   // in the next interrupt, which is harmless.
 
-  alt_puts("MONITOR: interrupt");
+  alt_puts("MONITOR: running interrupt");
 
   *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
 
