@@ -241,6 +241,11 @@ void read_write(struct buf *b, int write, uint64_t destination)
   free_chain(idx[0]);
   
   alt_puts("MONITOR: read_write done");
+
+  /* for (int i=0; i<BSIZE; i++) { */
+  /*   alt_printf("%x", ((char *)destination)[i]); */
+  /* } */
+  /* alt_printf("\n"); */
 }
 
 void

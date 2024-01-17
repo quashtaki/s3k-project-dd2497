@@ -27,9 +27,46 @@
 #define SHARED_MEM_LEN 0x10000
 
 
+char trap_stack[1024];
+void trap_handler(void) __attribute__((interrupt("machine")));
+
+void trap_handler(void)
+{
+	// We enter here on illegal instructions, for example writing to
+	// protected area (UART).
+
+	// On an exception we do
+	// - tf.epc = tf.pc (save program counter)
+	// - tf.pc = tf.tpc (load trap handler address)
+	// - tf.esp = tf.sp (save stack pointer)
+	// - tf.sp = tf.tsp (load trap stack pointer)
+	// - tf.ecause = mcause (see RISC-V privileged spec)
+	// - tf.eval = mval (see RISC-V privileged spec)
+	// tf is the trap frame, all registers of our process
+	uint64_t epc = s3k_reg_read(S3K_REG_EPC);
+	uint64_t esp = s3k_reg_read(S3K_REG_ESP);
+	uint64_t ecause = s3k_reg_read(S3K_REG_ECAUSE);
+	uint64_t eval = s3k_reg_read(S3K_REG_EVAL);
+
+	alt_printf(
+	    "error info:\n- epc: 0x%x\n- esp: 0x%x\n- ecause: 0x%x\n- eval: 0x%x\n",
+	    epc, esp, ecause, eval);
+	alt_printf("restoring pc and sp\n\n");
+}
+
+void setup_trap(void)
+{
+	// Sets the trap handler
+	s3k_reg_write(S3K_REG_TPC, (uint64_t)trap_handler);
+	// Set the trap stack
+	s3k_reg_write(S3K_REG_TSP, (uint64_t)trap_stack + 1024);
+}
+
+
 int main(void)
 {	
 
+	setup_trap();
 	alt_puts("APP0: hello from app0");
 	//s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
 	
