@@ -66,8 +66,7 @@ void setup_trap(void)
 int main(void)
 {	
 
-	setup_trap();
-	alt_puts("APP0: hello from app0");
+	//setup_trap();
 	//s3k_mon_cap_move(MONITOR, APP0_PID, 11, APP1_PID, 3); // move out capability to app1
 	
 	FATFS FatFs;		/* FatFs work area needed for each volume */
@@ -81,8 +80,6 @@ int main(void)
 	char buffer[1024];
 	
 	fr = f_open(&Fil, "app2.bin", FA_READ);
-	alt_puts("APP0: File opened");
-	alt_printf("APP0: fr rn?: %X\n", fr);
 	if (fr == FR_OK) {
 		f_read(&Fil, buffer, 1023, &bw);	/*Read data from the file */	
 		fr = f_close(&Fil);							/* Close the file */

@@ -1,0 +1,16 @@
+To check that the attack works:
+
+uncomment: result = true; at line 315 in monitor main.c
+
+this will bypass the monitor completely and
+when the monitor starts up app1 at the end
+you should see the binary from app2 get run instead
+
+To check that the monitor works:
+
+comment the line you uncommented
+
+now when app1 is ran again at the end it
+will run the prints from the app1 binary
+like it should.
+

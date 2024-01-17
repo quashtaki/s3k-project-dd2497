@@ -279,14 +279,13 @@ int main(void)
 
 	s3k_reply_t reply;
 	int i = 0;
-	alt_puts("MONITOR: starting loop, stuck for now");
+	alt_puts("MONITOR: started");
 
 	volatile char *toggle = (char*) TOGGLE_ADDRESS;
 	// this loop is to start app2 after the attack
 	while (i < 3) {
-		alt_puts("MONITOR: waiting for req");
+		alt_puts("MONITOR: awaiting request");
 		do {
-			alt_puts("MONITOR: wait");	
 			reply = s3k_sock_recv(13,0);
 			if (reply.err == S3K_ERR_TIMEOUT)
 				alt_puts("MONITOR: timeout");
@@ -312,12 +311,11 @@ int main(void)
 				break;
 			}
 		}
-
-		result = true;
-
+		//result = true;
 		if (!result) {
 			alt_puts("MONITOR: denied access to memory");
 			// we don't resume app0 as its trying to access memory it doesn't have access to
+			i++;
 			continue;
 		}
 
@@ -330,6 +328,8 @@ int main(void)
 	
 		i++;
 	}
+
+	alt_puts("MONITOR: testing app1");
 
 	s3k_mon_suspend(MONITOR, APP1_PID);
 	s3k_mon_reg_write(MONITOR, APP1_PID, S3K_REG_PC, 0x80030000);
