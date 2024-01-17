@@ -324,18 +324,6 @@ void virtio_disk_rw(struct buf *b, int write)
 
   //instead of building the queue here lets call a function in monitor and pass it via IPC
 
-
-
-  //   do {
-	//		err = s3k_sock_send(4, &msg);
-  //    //alt_printf("VIRTIO_DISK: reply.err CHANGED: %X\n", err);
-  //    alt_printf("Sending the queue");
-	//	} while (err != 0 && *shared_status == 0);
-  //alt_puts("VIRTIO_DISK: Sent to monitor");
-  //while (*shared_status == 0) {}
-  //alt_puts("VIRTIO_DISK: Monitor replied");
-  //int result = *shared_result; // this one should only be read ofc
-
   
   //This should not happen here 
   //First still allow and move few operations for a while
