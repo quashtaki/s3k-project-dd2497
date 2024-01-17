@@ -32,7 +32,7 @@
 void setup_app0(uint64_t tmp)
 {	s3k_err_t err;
 
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	uint64_t app0_addr = s3k_napot_encode(APP0_ADDRESS, 0x10000);
 
 	// Derive a PMP capability for app0 main memory
@@ -63,7 +63,7 @@ void start_app0(uint64_t tmp) {
 
 void setup_app1(uint64_t tmp)
 {
-	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x2000);
+	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	uint64_t app1_addr = s3k_napot_encode(APP1_ADDRESS, 0x10000);
 
 	// Derive a PMP capability for app1 main memory
@@ -261,7 +261,7 @@ int main(void)
 	s3k_sync();
 	alt_puts("Monitor starts");
 
-	setup_trap();
+	//setup_trap();
 
 	setup_app0(11);
 	setup_app1(12);	
