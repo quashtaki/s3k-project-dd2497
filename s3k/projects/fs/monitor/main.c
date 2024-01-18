@@ -198,6 +198,41 @@ bool inside_pmp(s3k_cap_t *cap, uint64_t addr) {
 	return (addr >= bgn && addr < end);
 }
 
+char trap_stack[1024];
+void trap_handler(void) __attribute__((interrupt("machine")));
+
+void trap_handler(void)
+{
+	// We enter here on illegal instructions, for example writing to
+	// protected area (UART).
+
+	// On an exception we do
+	// - tf.epc = tf.pc (save program counter)
+	// - tf.pc = tf.tpc (load trap handler address)
+	// - tf.esp = tf.sp (save stack pointer)
+	// - tf.sp = tf.tsp (load trap stack pointer)
+	// - tf.ecause = mcause (see RISC-V privileged spec)
+	// - tf.eval = mval (see RISC-V privileged spec)
+	// tf is the trap frame, all registers of our process
+	uint64_t epc = s3k_reg_read(S3K_REG_EPC);
+	uint64_t esp = s3k_reg_read(S3K_REG_ESP);
+	uint64_t ecause = s3k_reg_read(S3K_REG_ECAUSE);
+	uint64_t eval = s3k_reg_read(S3K_REG_EVAL);
+
+	alt_printf(
+	    "error info:\n- epc: 0x%x\n- esp: 0x%x\n- ecause: 0x%x\n- eval: 0x%x\n",
+	    epc, esp, ecause, eval);
+	alt_printf("restoring pc and sp\n\n");
+}
+
+void setup_trap(void)
+{
+	// Sets the trap handler
+	s3k_reg_write(S3K_REG_TPC, (uint64_t)trap_handler);
+	// Set the trap stack
+	s3k_reg_write(S3K_REG_TSP, (uint64_t)trap_stack + 1024);
+}
+
 
 #include <string.h>
 #include "../app0/types.h"
@@ -368,7 +403,8 @@ int main(void)
 	s3k_sync();
 	//alt_puts("Monitor starts");
 	setup_app0(11);
-	setup_app1(12);	
+	setup_app1(12);
+	setup_trap();	
 
 	
 	setup_socket(13, 14); // Socket is on 13 - and moved to 4
