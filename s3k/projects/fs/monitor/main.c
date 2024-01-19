@@ -467,6 +467,7 @@ int main(void)
 		
 		s3k_mon_resume(MONITOR, APP0_PID);
 		//alt_puts("MONITOR: resuming");
+		//deactivate the monitor by setting *shared_result = 1;
 		*shared_result = result; // either 1 or 0
 		*shared_status = 1; // always 1 if success
 		//alt_puts("MONITOR: sent");
