@@ -345,11 +345,6 @@ void queue_build(struct buf *b, int write, struct disk *disk)
  
   // DECIDE IF ADD TO QUEUE OR NOT
 
-  //alt_puts("VIRTIO_DISK: Checked with monitor");
-
-  
-  //This should not happen here 
-  //First still allow and move few operations for a while
   disk->desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
 
   disk->desc[idx[1]].len = BSIZE;
@@ -433,12 +428,12 @@ int main(void)
 	char *shared_status = (char*) SHARED_MEM;
 	char *shared_result = (char*) SHARED_MEM + 1;
 	
-	msg.data[0] = 1; // true or false
+	//msg.data[0] = 1; // true or false
 
-
+	
 	int i = 0;
-	while (i < 10) {
-		//alt_puts("MONITOR: waiting for req");
+	while (i < 3) {
+
 		do {		
 			reply = s3k_sock_recv(13,0);
 			if (reply.err == S3K_ERR_TIMEOUT)
@@ -450,28 +445,21 @@ int main(void)
 		s3k_mon_suspend(MONITOR, APP0_PID);
 		//Checking the capability of app0
 		bool result = false;
-		struct buf *b = (struct buf *)(uintptr_t)reply.data[1];
-		int write = reply.data[2];
-		struct disk *disk = (struct disk *)(uintptr_t)reply.data[3]; 
+		struct buf *b = (struct buf *)(uintptr_t)reply.data[0];
+		int write = reply.data[1];
+		struct disk *disk = (struct disk *)(uintptr_t)reply.data[2]; 
 		alt_puts("calling the queue");	
     	queue_build(b, write, disk);
+
 		for (int i = 0; i < 32; i++) {
 			s3k_cap_t cap;
 			//Derive the capability of app0
 			s3k_err_t err = s3k_mon_cap_read(MONITOR, APP0_PID, i, &cap);
 			//checking that the capability of app0 has the permission to access the addres
-			//struct buf *b = (struct buf *)(uintptr_t)reply.data[1];
-			//int write = reply.data[2];
-			//struct disk *disk = (struct disk *)(uintptr_t)reply.data[3]; 
-			//alt_puts("calling the queue");	
-    		//queue_build(b, write, disk);			
-			result = inside_pmp(&cap,(uint64_t) *reply.data); //kan vara detta som ska in 
+		
+			result = inside_pmp(&cap,(uint64_t) *reply.data); 
+			bool result = true; 
 			if (result) {
-				//struct buf *b = (struct buf *)(uintptr_t)reply.data[1];
-				//int write = reply.data[2];
-				//struct disk *disk = (struct disk *)(uintptr_t)reply.data[3]; 
-				//alt_puts("calling the queue");	
-    			//queue_build(b, write, disk);
 				break;
 			}
 		}
@@ -488,26 +476,6 @@ int main(void)
 
 
 
-//  	int j = 0;
-//	while (j < 1) {
-//		//alt_puts("MONITOR: waiting for req");
-//		do {		
-//			reply = s3k_sock_recv(13,0);
-//			if (reply.err == S3K_ERR_TIMEOUT)
-//				alt_puts("MONITOR: timeout");
-//		} while (reply.err);
-//		//alt_puts("MONITOR: received");
-//		alt_puts("Building the queue");
-//		*shared_status = 0;
-//
-//    struct buf *buffer = (struct buf *)(uintptr_t)msg.data[0];
-//	int write = msg.data[1];
-//	alt_puts("calling the queue");	
-//    queue_build(buffer, write); // build the queue
-//		
-//
-//		j++;
-//	}
 
 
 	s3k_mon_suspend(MONITOR, APP1_PID);

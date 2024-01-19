@@ -297,9 +297,9 @@ void virtio_disk_rw(struct buf *b, int write)
   s3k_err_t err;
 
   alt_puts("Create and send the message to build the queue");
-  msg.data[1] = (uint64_t) b;
-  msg.data[2] = (uint64_t) write;
-  msg.data[3] = (uint64_t) disk.desc;
+  msg.data[0] = (uint64_t) b;
+  msg.data[1] = (uint64_t) write;
+  msg.data[2] = (uint64_t) disk.desc;
 
    do {
 			err = s3k_sock_send(4, &msg);
