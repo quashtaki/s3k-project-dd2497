@@ -1,0 +1,12 @@
+To test the program:
+
+The monitor is activated from the beginning.
+
+In order to deactivate the monitor
+
+On row 471 in monitor/main.c file
+change the row
+"*shared_result = result;" 
+to 
+"*shared_result = 1;" 
+This will make the monitor pass all request, rendering the monitor useless.
