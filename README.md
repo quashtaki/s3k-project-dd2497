@@ -7,7 +7,7 @@ In order to run the program:
 -Run "docker build -t s3k-docker ." to create the docker image
 
 -Run "docker run -t s3k-docker" to run the program
----------------------------------------------------
+
 In order to deactivate the monitor:
 
 On row 471 in monitor/main.c file change the row
