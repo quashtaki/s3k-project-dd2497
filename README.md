@@ -1,5 +1,5 @@
 In order to run the program:
-
+---------------------------
 -Download and start Docker
 
 -Go to branch libl_queue_disk__move 
@@ -9,7 +9,7 @@ In order to run the program:
 -Run "docker run -t s3k-docker" to run the program
 
 In order to deactivate the monitor:
-
+-----------------------------------
 On row 471 in monitor/main.c file change the row
 "*shared_result = result;"
 to
