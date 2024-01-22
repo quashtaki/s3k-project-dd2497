@@ -1,0 +1,5 @@
+#define REVOKE_DRIVER_MEM_EMPTY_QUEUE true
+#define REVOKE_UNRELATED_MEM false
+#define REVOKE_DRIVER_MEM_POPULATED_QUEUE false
+
+#define USE_SENDRECV false

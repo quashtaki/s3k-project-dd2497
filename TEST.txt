@@ -1,0 +1,15 @@
+From the s3k/projects/fs folder.
+
+In the conf.h file to test the three different use cases alter the 
+
+REVOKE_DRIVER_MEM_EMPTY_QUEUE
+REVOKE_UNRELATED_MEM
+REVOKE_DRIVER_MEM_POPULATED_QUEUE
+(USE_SENDRECV - see report)
+
+As usual just run with "make qemu" assuming the disk-image has been made ("make disk-image").
+The "REVOKE_DRIVER_MEM_POPULATED_QUEUE" is run from within the driver simply to ensure the queue is populated at the time of the revocation request.
+
+The REVOKE_DRIVER_MEM_EMPTY_QUEUE attempts to revoke a capability involving the driver range with the virtio queue empty.
+The REVOKE_UNRELATED_MEM attempts to to revoke a capability involving some other unrealted range.
+The REVOKE_DRIVER_MEM_POPULATED_QUEUE attempts to revoke a capability involving the driver range while there are unprocessed entries in the virtio queue.

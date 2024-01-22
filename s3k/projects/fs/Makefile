@@ -50,7 +50,6 @@ disk-image-binary:
 	mformat -i fs.img ::
 	mcopy -i fs.img ./build/qemu_virt/app2.bin ::/app2.bin
 	mcopy -i fs.img ./test1.txt ::/test1.txt
-	mcopy -i fs.img ./test2.txt ::/test2.txt
 
 disk-read:
 	mdir -i fs.img

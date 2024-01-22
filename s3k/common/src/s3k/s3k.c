@@ -443,56 +443,20 @@ s3k_err_t s3k_cap_delete(s3k_cidx_t idx)
 
 s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 {
-	alt_puts("KERNEL: START REVOKE");
-	alt_printf("REVOKE INDEX: %X\n", idx);
-	alt_printf("KERNEL: pid %X\n", s3k_get_pid());
+	alt_printf("S3K: REVOKE cap index %x\n", idx);
+
 	s3k_msg_t msg;
-	msg.data[0] = 9;
-	msg.data[1] = 9;
-	msg.data[2] = 9;
-	msg.data[3] = 9;
+	msg.data[0] = s3k_get_pid();
+	msg.data[1] = 94;
+	msg.data[2] = 94;
+	msg.data[3] = idx;
 	s3k_cap_t cap;
 	s3k_reply_t reply;
-	s3k_err_t err_ipc;
-	
-	s3k_reg_write(S3K_REG_SERVTIME, 4500);
-	do {
-		// err_ipc = s3k_sock_send(4, &msg);
-		reply = s3k_sock_sendrecv(4, &msg);
-	} while (reply.err != 0);
-	alt_puts("KERNEL: Query monitor on memory belongings");
-	alt_printf("KERNEL: Data %x%x%x%x\n", reply.data[0], reply.data[1], reply.data[2], reply.data[3]);
 
-	//char *shared_status = (char*) SHARED_MEM;
-	//*shared_status = 0;
 	s3k_err_t err;
-	char* status = (char*) APP_ADDRESS+0x5000; //should probably do this in a special memory section and not just in the middle of where the program could be
-	// char* status_driver = (char*) APP_ADDRESS+0x9000;
-	//alt_printf("Kernel: Status before revoke: %x\n", *status);
-
-	if (reply.data[0] == 1 && reply.data[1] == 1 && reply.data[2] == 1 && reply.data[3] == 1) {
-		alt_puts("KERNEL: Memory belongs to disk driver, shutting process down");
-
-		msg.data[0] = 8;
-		msg.data[1] = 8;
-		msg.data[2] = 8;
-		msg.data[3] = 8;
-		do {
-			reply = s3k_sock_sendrecv(4, &msg);
-		} while (reply.err != 0);
-
-		if (reply.data[0] == 1 && reply.data[1] == 1 && reply.data[2] == 1 && reply.data[3] == 1) {
-			alt_puts("KERNEL: Disk driver shut down");
-		}
-	}
-
 	do {
 		err = s3k_try_cap_revoke(idx);
 	} while (err == S3K_ERR_PREEMPTED);
-	*status = 0;
-	// *status_driver = 0;
-	//alt_printf("Kernel: Status after revoke: %x\n", *status);
-	//*shared_status = 1;
 	return err;
 }
 

@@ -19,13 +19,14 @@
 #include "altc/altio.h"
 #include "virtio_disk.h"
 #include "s3k/s3k.h"
+#include "../conf.h"
 
 #define PGSIZE 4096
 #define PGSHIFT 12  // bits of offset within a page
 // virtio mmio interface
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
-
+int first_run = 0;
 
 // the address of virtio mmio register r.
 #define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
@@ -160,6 +161,15 @@ virtio_disk_init(void)
   alt_puts("Disk Initialization completed\n");
 }
 
+// void virtio_retrieve_disk() {
+//   alt_puts("HEJHEJ RETRIEVE DISK THANKS");
+//   // struct disk *disk_ptr = &disk;
+//   struct disk *disk_ptr;
+//   disk_ptr = &disk;
+
+//   // return disk_ptr;
+// }
+
 // find a free descriptor, mark it non-free, return its index.
 static int
 alloc_desc()
@@ -224,20 +234,22 @@ alloc3_desc(int *idx)
   return 0;
 }
 
-#define SHARED_MEM 0x80050000
-#define SHARED_MEM_LEN 0x10000
-
-int is_init = -2;
-
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-is_init++;
-  
+  alt_printf("Virt first_run %x\n", first_run);
+  if (!first_run) {
+    alt_puts("VIRTIO SHARING VIRT QUEUE WITH MONITOR");
+    struct disk *disk_ptr;
+    disk_ptr = (struct disk *)0x80098000;
+    *disk_ptr = disk;
+    first_run++;
+    return;
+  }
 
   uint64 sector = b->blockno * (BSIZE / 512);
   // alt_puts("VIRTIO_DISK: inside virtio_disk_rw");
-
+  // alt_printf("VIRT: sector %x\n", sector);
 
   /* acquire(&disk.vdisk_lock); */
 
@@ -276,65 +288,9 @@ is_init++;
   // it reads 3 times but its only the last one on sector 49 that is the the data
   uint64 output = (uint64) b->data;
 
-  if (sector == 49) {
-    output = (uint64) 0x0000000080020000;
-  }
-
-  // alt_printf("VIRTIO_DISK: virtio_disk_rw output %x\n", output);
-
-  if (is_init > 0) {
-  // HERE WE CHECK WITH MONITOR!
-
-  volatile char *shared_status = (char*) SHARED_MEM; // this is important bc it optimizes otherwise
-	char *shared_result = (char*) SHARED_MEM + 1;
-
-  alt_puts("VIRTIO_DISK: Trying to read from drivers memory...");
-  s3k_msg_t msg;
-  memcpy(msg.data, &output, sizeof(output));
-  alt_printf("VIRTIO_DISK: RUN NUMBER %X\n", is_init);
-
-  char temp[12];
-  char* temp_str;
-  temp_str = 0x80060000;
-  for (int i = 0; i < 12; i++) {
-    temp[i] = *(temp_str + i);
-  }
-
-  // char temp1[12];
-  // char* temp_str1;
-  // temp_str1 = 0x80018000;
-  // for (int i = 0; i < 10; i++) {
-  //   temp1[i] = *(temp_str1 + i);
+  // if (sector == 49) {
+  //   output = (uint64) 0x0000000080020000;
   // }
-
-  alt_printf("VIRTIO_DISK: READ FROM DRIVER: %s\n", temp);
-  // alt_printf("VIRTIO_DISK: READ FROM DRIVER AGAIN: %s\n", temp1);
-
-  // s3k_reply_t reply;
-  // s3k_reg_write(S3K_REG_SERVTIME, 4500);
-
-  // *shared_status = 0; // this one could be write and read, bc we want to set it to 0 before comms to not have risk for issues
-  // s3k_err_t err;
-  //  do {
-	// 		err = s3k_sock_send(14, &msg);
-  //     //alt_printf("VIRTIO_DISK: reply.err: %X\n", err);
-	// 	} while (err != 0 && *shared_status == 0);
-  // alt_puts("VIRTIO_DISK: Sent to monitor");
-  // while (*shared_status == 0) {}
-  // alt_puts("VIRTIO_DISK: Monitor replied");
-  // int result = *shared_result; // this one should only be read ofc
-
-  // if (result == 0) {
-  //   alt_puts("VIRTIO_DISK: Monitor denied access to memory");
-  //   return;
-  // } else {
-  //   alt_puts("VIRTIO_DISK: Monitor allowed access to memory");
-  // }
-    
-  // DECIDE IF ADD TO QUEUE OR NOT
-
-  // alt_puts("VIRTIO_DISK: Checked with monitor");
-  }
 
   disk.desc[idx[1]].addr = output; // 0x00000000800200000;  // b->data; 
   disk.desc[idx[1]].len = BSIZE;
@@ -351,11 +307,23 @@ is_init++;
   disk.desc[idx[2]].flags = VRING_DESC_F_WRITE; // device writes the status
   disk.desc[idx[2]].next = 0;
 
-  if (is_init > 0) {
-    alt_printf("VIRTIO addr0: %x\n", disk.desc[idx[0]].addr);
-    alt_printf("VIRTIO addr1: %x\n", disk.desc[idx[1]].addr);
-    alt_printf("VIRTIO addr2: %x\n", disk.desc[idx[2]].addr);
-  }
+  uint64_t desc1_addr = disk.desc[idx[0]].addr;
+  uint64_t desc2_addr = disk.desc[idx[1]].addr;
+  uint64_t desc3_addr = disk.desc[idx[2]].addr;
+
+  // alt_printf("VIRTIO addr0: %x | len/flags/next %x - %x - %x\n", disk.desc[idx[0]].addr, disk.desc[idx[0]].len, disk.desc[idx[0]].flags, disk.desc[idx[0]].next);
+  // alt_printf("VIRTIO addr1: %x | len/flags/next %x - %x - %x\n", disk.desc[idx[1]].addr, disk.desc[idx[1]].len, disk.desc[idx[1]].flags, disk.desc[idx[1]].next);
+  // alt_printf("VIRTIO addr2: %x | len/flags/next %x - %x - %x\n", disk.desc[idx[2]].addr, disk.desc[idx[2]].len, disk.desc[idx[2]].flags, disk.desc[idx[2]].next);
+
+  // alt_printf("VIRTIO: Print avail %x\n", idx[0]);
+  // alt_printf("VIRTIO: avail unused/idx %x - %x\n", disk.avail->unused, disk.avail->idx);
+  // alt_printf("VIRTIO avail addr %x\n", disk.desc[disk.avail->idx].addr);
+  // for (int i = 0; i < NUM; i++) {
+  //   alt_printf("AVAIL RING: %x\n", disk.avail->ring[i]);
+  //   alt_printf("AVAIL: addr %x\n", disk.desc[disk.avail->ring[i]]);
+  //   alt_printf("USED RING: %x\n", disk.used->ring[i].id);
+  //   alt_printf("OPS: type: %x sector: %x reserved: %x\n", disk.ops[i].type, disk.ops[i].sector, disk.ops[i].reserved);
+  // }
 
   // record struct buf for virtio_disk_intr().
   b->disk = 1;
@@ -369,6 +337,32 @@ is_init++;
   // tell the device another avail ring entry is available.
   disk.avail->idx += 1; // not % NUM ...
 
+  s3k_msg_t msg;
+  msg.data[0] = s3k_get_pid();
+  msg.data[1] = 94;
+  msg.data[2] = 94;
+  msg.data[3] = 0;
+  s3k_reply_t reply;
+  s3k_err_t err;
+
+  if (REVOKE_DRIVER_MEM_POPULATED_QUEUE) {
+    if (first_run > 2) {
+      alt_puts("REVOKE POPULATED QUEUE");
+      if (USE_SENDRECV) {
+        s3k_reg_write(S3K_REG_SERVTIME, 4500);
+        do {
+          reply = s3k_sock_sendrecv(14, &msg);
+          // alt_printf("ERR %x %x %x\n", reply.err, S3K_ERR_NO_RECEIVER, S3K_ERR_TIMEOUT);
+        } while (reply.err != 0);
+      } else {
+        s3k_reg_write(S3K_REG_SERVTIME, 4500);
+      do {
+        err = s3k_sock_send(14, &msg);
+      } while (err != 0);
+      }
+    }
+  }
+
   __sync_synchronize();
 
   *R(VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
@@ -379,7 +373,7 @@ is_init++;
     virtio_disk_intr();
   }
 
-
+  first_run++;
   disk.info[idx[0]].b = 0;
   free_chain(idx[0]);
 
