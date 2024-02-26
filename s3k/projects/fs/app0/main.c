@@ -21,7 +21,7 @@
 #define CHANNEL 9
 
 #define DRIVER_ADDRESS 0x80010000
-#define APP_ADDRESS 0x80020000
+#define APP_ADDRESS 0x80040000
 #define MONITOR_ADDRESS 0x80090000
 
 void setup_monitor(uint64_t tmp)
@@ -65,6 +65,7 @@ void setup_app1(uint64_t tmp)
 {
 	uint64_t uart_addr = s3k_napot_encode(UART0_BASE_ADDR, 0x8);
 	uint64_t app1_addr = s3k_napot_encode(APP_ADDRESS, 0x10000);
+	uint64_t shared_addr = s3k_napot_encode(0x80097900, 0x100);
 
 	// Derive a PMP capability for app1 main memory - guessing can do in our monitor but hard to tell as cant launch app1 given subsequent derive of HART (may fail silently)
 	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(app1_addr, S3K_MEM_RWX));
@@ -75,6 +76,11 @@ void setup_app1(uint64_t tmp)
 	s3k_cap_derive(UART_MEM, tmp, s3k_mk_pmp(uart_addr, S3K_MEM_RW));
 	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 1);
 	s3k_mon_pmp_load(MONITOR, APP1_PID, 1, 1);
+
+	// for shared memory in case ipc causing issues
+	s3k_cap_derive(RAM_MEM, tmp, s3k_mk_pmp(shared_addr, S3K_MEM_RW));
+	s3k_mon_cap_move(MONITOR, APP0_PID, tmp, APP1_PID, 6);
+	s3k_mon_pmp_load(MONITOR, APP1_PID, 6, 3);
 }
 
 void start_app1(uint64_t tmp) {
@@ -109,6 +115,65 @@ void setup_socket(uint64_t socket, uint64_t tmp, uint64_t tmp1)
 void move_caps_to_mon() {
 	alt_puts("APP0: move most caps to monitor");
 	// s3k_mon_cap_move(MONITOR, APP0_PID, BOOT_PMP, MONITOR_PID, BOOT_PMP); // nope?
+	if (MEM_MODE == 1) {
+		alt_puts("APP0: application has parent cap");
+		// P Parent
+		if (PMP_CAP) {
+			uint64_t parent_addr = s3k_napot_encode(0x80010000, 0x20000); // 0x80000000 - 0x80040000
+			uint64_t child_addr = s3k_napot_encode(0x80010000, 0x10000); // 0x80010000 - 0x80020000
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_pmp(parent_addr, S3K_MEM_RWX));
+			s3k_cap_derive(RAM_MEM, 27, s3k_mk_pmp(child_addr, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, APP1_PID, 7);
+			s3k_mon_pmp_load(MONITOR, APP1_PID, 7, 4);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, MONITOR_PID, 24);
+			s3k_mon_pmp_load(MONITOR, MONITOR_PID, 24, 3);
+		} else {
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_memory(0x80000000, 0x80040000, S3K_MEM_RWX));
+			s3k_cap_derive(26, 27, s3k_mk_memory(0x80010000, 0x80020000, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, APP1_PID, 7);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, MONITOR_PID, 24);
+		}
+	} else if (MEM_MODE == 2) {
+		// P Child
+		alt_puts("APP0: Application has child cap");
+		if (PMP_CAP) {
+			uint64_t parent_addr = s3k_napot_encode(0x80010000, 0x20000); // 0x80000000 - 0x80040000
+			uint64_t child_addr = s3k_napot_encode(0x80010000, 0x10000); // 0x80010000 - 0x80020000
+
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_pmp(parent_addr, S3K_MEM_RWX));
+			s3k_cap_derive(RAM_MEM, 27, s3k_mk_pmp(child_addr, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, APP1_PID, 7);
+			s3k_mon_pmp_load(MONITOR, APP1_PID, 7, 4);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, MONITOR_PID, 24);
+			s3k_mon_pmp_load(MONITOR, MONITOR_PID, 24, 3);
+		} else {
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_memory(0x80000000, 0x80040000, S3K_MEM_RWX));
+			s3k_cap_derive(26, 27, s3k_mk_memory(0x80010000, 0x80020000, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, APP1_PID, 7);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, MONITOR_PID, 24);
+		}
+		
+	} else if (MEM_MODE == 3) {
+		// P Independent
+		alt_puts("APP0: application has independent cap");
+		if (PMP_CAP) {
+			uint64_t parent_addr = s3k_napot_encode(0x80010000, 0x10000);
+			uint64_t independent_addr = s3k_napot_encode(0x80050000, 0x10000);
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_pmp(parent_addr, S3K_MEM_RWX));
+			s3k_cap_derive(RAM_MEM, 27, s3k_mk_pmp(independent_addr, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, APP1_PID, 7);
+			s3k_mon_pmp_load(MONITOR, APP1_PID, 7, 4);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, MONITOR_PID, 24);
+			s3k_mon_pmp_load(MONITOR, MONITOR_PID, 24, 3);
+		} else {
+			s3k_cap_derive(RAM_MEM, 26, s3k_mk_memory(0x80010000, 0x80020000, S3K_MEM_RWX));
+			s3k_cap_derive(RAM_MEM, 27, s3k_mk_memory(0x80050000, 0x80060000, S3K_MEM_RWX));
+			s3k_mon_cap_move(MONITOR, APP0_PID, 27, APP1_PID, 7);
+			s3k_mon_cap_move(MONITOR, APP0_PID, 26, MONITOR_PID, 24);
+		}
+		
+	}
+	
 	s3k_mon_cap_move(MONITOR, APP0_PID, RAM_MEM, MONITOR_PID, RAM_MEM); // yes - let monitor derive
 	s3k_mon_cap_move(MONITOR, APP0_PID, UART_MEM, MONITOR_PID, UART_MEM); // yes - let monitor derive
 	s3k_mon_cap_move(MONITOR, APP0_PID, TIME_MEM, MONITOR_PID, TIME_MEM); // don't need but why not?
@@ -140,6 +205,13 @@ int main(void)
 	setup_monitor(12);
 	setup_socket(13, 14, 19); // Socket is on 13 - and moved to 4
 	// setup_socket_app1(18, 19); // Socket on 18 - moved to 4
+
+	volatile int *block_virtio = (int *)0x80097950;
+	*block_virtio = 0;
+
+	if (ENABLE_VIRTIO_QUEUE) {
+		*block_virtio = 1;
+	}
 
 	start_app1(11);
 	move_caps_to_mon();
@@ -192,28 +264,6 @@ int main(void)
 		}
 	} else{
 		alt_puts("APP0: File not opened\n");
-	}
-
-	s3k_msg_t msg;
-  msg.data[0] = s3k_get_pid();
-  msg.data[1] = 94;
-  msg.data[2] = 94;
-  msg.data[3] = 0;
-  s3k_reply_t reply;
-
-	if (REVOKE_DRIVER_MEM_EMPTY_QUEUE) {
-		alt_puts("REVOKE EMPTY QUEUE");
-		if (USE_SENDRECV) {
-			s3k_reg_write(S3K_REG_SERVTIME, 4500);
-			do {
-				reply = s3k_sock_sendrecv(14, &msg);
-			} while (reply.err != 0); 
-		} else {
-			s3k_reg_write(S3K_REG_SERVTIME, 4500);
-			do {
-				err = s3k_sock_send(14, &msg);
-			} while (err != 0); 
-		}
 	}
 
 	alt_puts("APP0: done");

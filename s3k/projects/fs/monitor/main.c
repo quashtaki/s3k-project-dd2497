@@ -21,10 +21,16 @@
 #define CHANNEL 9
 
 #define DRIVER_ADDRESS 0x80010000
-#define APP_ADDRESS 0x80020000
+#define APP_ADDRESS 0x80040000
 #define APP_ADDRESS_SECOND 0x80050000
 #define BUFFER_SIZE 512
 #define NUM 8
+#define DRIVER_START 0x80010000
+#define DRIVER_END 0x80020000
+#define S3K_PARENT_CAP 0
+#define S3K_CHILD_CAP 1
+#define S3K_OVERLAP_CAP 2
+#define S3K_INDEPENDENT_CAP 3
 
 struct quarantine {
 	int queue_count;
@@ -36,6 +42,7 @@ struct patient {
 	s3k_cap_t *cap;
 	s3k_cidx_t cap_index;
 	s3k_pid_t pid;
+	volatile int *msg;
 	struct patient *next;
 };
 
@@ -135,14 +142,64 @@ bool check_memory(s3k_cap_t *cap, uint64_t addr) {
 	}
 }
 
-void add_cap_to_quarantine(struct quarantine *q, s3k_cap_t *cap, s3k_pid_t pid, s3k_cidx_t cap_index) {
+int check_overlap(s3k_cap_t *cap) {
+	int cap_type;
+	uint64_t begin;
+	uint64_t end;
+
+	if (cap->type == S3K_CAPTY_MEMORY) {
+		begin = TAG_BLOCK_TO_ADDR(cap->mem.tag, cap->mem.bgn);
+		end = TAG_BLOCK_TO_ADDR(cap->mem.tag, cap->mem.end);
+	} else if (cap->type == S3K_CAPTY_PMP) {
+		uint64_t size;
+		s3k_napot_decode(cap->pmp.addr, &begin, &size);
+		end = begin + size;
+	}
+
+	// if (begin < DRIVER_START) {
+	// 	alt_puts("MON BEGIN 1");
+	// }
+
+	// if ((end > DRIVER_START && end <= DRIVER_END)) {
+	// 	alt_puts("MON END 2");
+	// }
+
+	// if ((begin > DRIVER_START && begin < DRIVER_END)) {
+	// 	alt_puts("MON BEGIN 3");
+	// }
+
+	// if (end > DRIVER_END) {
+	// 	alt_puts("MON END 4");
+	// }
+
+	cap_type = begin < DRIVER_START && end > DRIVER_END ? S3K_PARENT_CAP : (
+			begin >= DRIVER_START && end <= DRIVER_END ? S3K_CHILD_CAP : (
+			(begin < DRIVER_START && (end > DRIVER_START && end <= DRIVER_END)) || ((begin > DRIVER_START && begin < DRIVER_END) && end > DRIVER_END) ? S3K_OVERLAP_CAP : S3K_INDEPENDENT_CAP));
+
+	return cap_type;
+}
+
+// assumes process is suspended already (and manually resumed)
+revoke_cap(s3k_pid_t pid, s3k_cidx_t cap_index) {
+	alt_printf("MONITOR: Moving cap %x of PID %x temporarily to slot 30 to revoke\n", cap_index, pid);
+	s3k_err_t err = s3k_mon_cap_move(MONITOR, pid, cap_index, MONITOR_PID, 30);
+	s3k_err_t err2 = s3k_cap_delete(30);
+
+	if (err == S3K_SUCCESS && err2 == S3K_SUCCESS) {
+		alt_printf("MONITOR: Successfully revoked cap %x of PID %x\n", cap_index, pid);
+	}
+}
+
+void add_cap_to_quarantine(struct quarantine *q, s3k_cap_t *cap, s3k_pid_t pid, s3k_cidx_t cap_index, volatile int *msg) {
 	alt_puts("MONITOR: Adding item to quarantine for future removal");
-	struct patient p;
+	struct patient p;uint64_t begin = TAG_BLOCK_TO_ADDR(cap->mem.tag, cap->mem.bgn);
+	uint64_t end = TAG_BLOCK_TO_ADDR(cap->mem.tag, cap->mem.end);
 	p.cap = cap;
 	p.cap_index = cap_index;
 	p.pid = pid;
+	p.msg = msg;
 	p.next = q->first;
-	check_memory(p.cap, 0x80010000);
+	// check_memory(p.cap, 0x80010000);
 
 	if (q->first == NULL) {
 		p.next = &p;
@@ -216,9 +273,9 @@ void iterate_queue_revoke_caps(struct quarantine *q, struct disk *virt_queues) {
 
 			if (!in_range) {
 				alt_puts("MONITOR: CAP NOT IN RANGE - may be removed");
+				// *(temp->msg) = 0;
 				s3k_mon_suspend(MONITOR, pid);
-				s3k_mon_cap_move(MONITOR, pid, cap_index, MONITOR_PID, 30);
-				s3k_err_t err = s3k_cap_revoke(30);
+				revoke_cap(pid, cap_index);
 				s3k_mon_resume(MONITOR, pid);
 				// shut down driver...
 
@@ -319,22 +376,10 @@ int main(void)
 	address_data = (char*)0x80099900;
 	s3k_addr_t base_addr;
 	size_t range;
+	s3k_pid_t pid;
 	struct disk *disk_ptr = (struct disk*)0x80098000;
-
-	// give app0 driver range sliced from parent cap
-	s3k_mon_suspend(MONITOR, 0);
-	uint64_t driver_addr = s3k_napot_encode(DRIVER_ADDRESS, 0x10000);
-	s3k_cap_derive(RAM_MEM, 21, s3k_mk_pmp(driver_addr, S3K_MEM_RWX));
-	s3k_cap_derive(21, 22, s3k_mk_pmp(driver_addr, S3K_MEM_RWX));
-	s3k_mon_cap_move(MONITOR, MONITOR_PID, 22, APP0_PID, 0); // cap 5
-	s3k_mon_pmp_load(MONITOR, APP0_PID, 0, 3);
-	s3k_mon_resume(MONITOR, 0);
-
-	// give app1 mem range it is supposed to be allowed to remove
-	uint64_t app1_addr_second = s3k_napot_encode(APP_ADDRESS_SECOND, 0x10000);
-	s3k_cap_derive(RAM_MEM, 23, s3k_mk_pmp(app1_addr_second, S3K_MEM_RWX));
-	s3k_mon_cap_move(MONITOR, MONITOR_PID, 23, APP1_PID, 5); // cap 5
-	s3k_mon_pmp_load(MONITOR, APP1_PID, 5, 2);
+	volatile int *msg_status[] = {(int *)0x80097900, (int *)0x80097925};
+	volatile int *block_virtio = (int *)0x80097950;
 
 	// setup_app1(12);
 	start_app1(12);
@@ -356,7 +401,7 @@ int main(void)
 		if (reply.data[1] == 84 && reply.data[2] == 84) {
 			// check all caps
 			alt_puts("MONITOR: CHECK ALL CAPS");
-			s3k_pid_t pid = reply.data[0];
+			pid = reply.data[0];
 			s3k_cidx_t cap_index = reply.data[3];
 
 			// check memory - suspend process meanwhile to access cap
@@ -393,7 +438,7 @@ int main(void)
 
 		if (reply.data[1] == 94 && reply.data[2] == 94) {
 			alt_puts("MONITOR: PROCESSING REQUEST TO REVOKE CAP");
-			s3k_pid_t pid = reply.data[0];
+			pid = reply.data[0];
 			s3k_cidx_t cap_index = reply.data[3];
 
 			alt_printf("MONITOR descriptor 0 addr: %x | len/flags/next %x - %x - %x\n", disk_ptr->desc[0].addr, disk_ptr->desc[0].len, disk_ptr->desc[0].flags, disk_ptr->desc[0].next);
@@ -405,7 +450,6 @@ int main(void)
 			bool virt_empty = false;
 			uint64_t addrs[] = {disk_ptr->desc[0].addr, disk_ptr->desc[1].addr, disk_ptr->desc[2].addr};
 			if (addrs[0] == 0 && addrs[1] == 0 && addrs[2] == 0) {
-				alt_puts("MONITOR: VIRTQUEUE EMPTY (driver side) - cap removal not restricted");
 				virt_empty = true;
 			}
 
@@ -415,10 +459,25 @@ int main(void)
 			err = s3k_mon_cap_read(MONITOR, pid, cap_index, &cap);
 			alt_printf("MONITOR: Revoke request of PID: %x | CAP index: %x | CAP type %x\n", pid, cap_index, cap.type);
 
+			int overlap_type;
 			if (cap.type == S3K_CAPTY_MEMORY) {
+				alt_puts("MONITOR: Cap is memory type");
 				print_memory_range(&cap);
 			} else if (cap.type == S3K_CAPTY_PMP) {
+				alt_puts("MONITOR: Cap is pmp type");
 				print_pmp_range(&cap);
+			}
+
+			overlap_type = check_overlap(&cap);
+
+			if (overlap_type == S3K_PARENT_CAP) {
+				alt_puts("MONITOR: PARENT CAP TYPE");
+			} else if (overlap_type == S3K_CHILD_CAP) {
+				alt_puts("MONITOR: CHILD CAP TYPE");
+			} else if (overlap_type == S3K_OVERLAP_CAP) {
+				alt_puts("MONITOR: OVERLAP CAP TYPE");
+			} else if (overlap_type == S3K_INDEPENDENT_CAP) {
+				alt_puts("MONITOR: INDEPENDENT CAP TYPE");
 			}
 
 			bool status = false;
@@ -429,21 +488,37 @@ int main(void)
 					break;
 				}
 			}
-			if (status && !virt_empty) {
-				alt_puts("MONITOR: INSIDE MEMORY - CANNOT REVOKE");
-				add_cap_to_quarantine(&quarantine_queue, &cap, pid, cap_index);
+
+			if (overlap_type == S3K_INDEPENDENT_CAP) {
+				alt_puts("MONITOR: Revoke request involves independent memory - proceeding to revoke immediately");
+				revoke_cap(pid, cap_index);
+			} else if (virt_empty) {
+				alt_puts("MONITOR: VIRTIO queue is empty (driver side) - proceeding to revoke immediately");
+				revoke_cap(pid, cap_index);
 			} else {
-				alt_puts("MONITOR: NOT IN MEMORY OR VIRT QUEUE EMPTY - CAN REVOKE");
-				alt_puts("MONITOR: Moving cap temporarily to slot 30 to revoke");
-				// revoke cap - currently let monitor move cap and revoke it instead of kernel communicate and revoke/return error
-				s3k_mon_cap_move(MONITOR, pid, cap_index, MONITOR_PID, 30);
-				err = s3k_cap_revoke(30);
-				// shut down driver if in driver range
+				if (status) {
+					alt_puts("MONITOR: VIRTIO queue in memory - cannot revoke - adding to quarantine");
+
+					add_cap_to_quarantine(&quarantine_queue, &cap, pid, cap_index, msg_status[pid]);
+				} else {
+					alt_puts("MONITOR: VIRTIO queue contains not conflicting entries - proceeding to revoke immediately");
+					// revoke cap - let monitor move cap and revoke it instead of kernel communicate and revoke/return error
+					revoke_cap(pid, cap_index);
+					// shut down driver if in driver range
+				}
+			}
+
+			if (USE_SHARED_MEMORY) {
+				*msg_status[pid] = 0;
 			}
 			// alt_printf("PC: %x\n", pc);
 			// s3k_mon_reg_write(MONITOR, pid, S3K_REG_PC, pc);
 			err = s3k_mon_resume(MONITOR, pid);
-			
+
+			if (ENABLE_VIRTIO_QUEUE) {
+				*block_virtio = 0;
+			}
+
 			if (USE_SENDRECV) {
 				msg.data[0] = 77;
 				msg.data[1] = 77;
@@ -453,13 +528,14 @@ int main(void)
 				do {
 					err = s3k_sock_send(14, &msg);
 				} while (err != 0);
-			}			
+			}	
 		}
 
 		if (quarantine_has_queue(&quarantine_queue)) {
 			alt_puts("MONITOR: Quarantine has queue - iterating over attempting to revoke caps");
 
 			iterate_queue_revoke_caps(&quarantine_queue, disk_ptr);
+			// *err_status = 0;
 			alt_puts("MONITOR: Done iterating queue");
 		} else {
 			alt_puts("MONITOR: Quarantine has NO queue");

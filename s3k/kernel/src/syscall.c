@@ -18,6 +18,7 @@
 #include <stdbool.h>
 
 #define ARGS 8
+#define MONITOR_PID 2
 
 static err_t validate_arguments(uint64_t call, const sys_args_t *args);
 static proc_t *sys_get_info(proc_t *const, const sys_args_t *);
@@ -290,6 +291,13 @@ proc_t *sys_cap_move(proc_t *const p, const sys_args_t *args)
 
 proc_t *sys_cap_delete(proc_t *const p, const sys_args_t *args)
 {
+	alt_printf("KERNEL: SYS CALL delete PID %x\n", p->pid);
+	if (p->pid == MONITOR_PID) {
+		alt_puts("KERNEL: Monitor deleting cap");
+	} else {
+		alt_printf("KERNEL: Process %x NOT allowed to delete cap - ask monitor\n", p->pid);
+		return NULL;
+	}
 	cte_t c = ctable_get(p->pid, args->cap.idx);
 	p->regs[REG_T0] = ERR_PREEMPTED;
 	if (!kernel_lock_acquire())
@@ -301,6 +309,13 @@ proc_t *sys_cap_delete(proc_t *const p, const sys_args_t *args)
 
 proc_t *sys_cap_revoke(proc_t *const p, const sys_args_t *args)
 {
+	alt_printf("KERNEL: SYS CALL revoke PID %x\n", p->pid);
+	if (p->pid == MONITOR_PID) {
+		alt_puts("KERNEL: Monitor revoking cap");
+	} else {
+		alt_printf("KERNEL: Process %x NOT allowed to revoke cap - ask monitor\n", p->pid);
+		return NULL;
+	}
 	cte_t c = ctable_get(p->pid, args->cap.idx);
 	p->regs[REG_T0] = ERR_PREEMPTED;
 	err_t err;

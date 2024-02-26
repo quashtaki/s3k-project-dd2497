@@ -1,5 +1,12 @@
-#define REVOKE_DRIVER_MEM_EMPTY_QUEUE true
-#define REVOKE_UNRELATED_MEM false
-#define REVOKE_DRIVER_MEM_POPULATED_QUEUE false
+// just leave these two true (shared memory to cirvumvent potential ipc issues after immediate suspend/resume)
+#define USE_SENDRECV true
+#define USE_SHARED_MEMORY true
 
-#define USE_SENDRECV false
+// blocks execution of file operations temporarily to illustrate quarantine
+#define ENABLE_VIRTIO_QUEUE true
+
+// 1, 2, 3 - 1 = P Parent cap, 2 = P Child cap, 3 = P Independent cap
+#define MEM_MODE 1
+
+// true = PMP CAP, false = MEM CAP
+#define PMP_CAP true

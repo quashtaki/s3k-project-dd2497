@@ -237,9 +237,13 @@ alloc3_desc(int *idx)
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-  alt_printf("Virt first_run %x\n", first_run);
+  // alt_printf("Virt first_run %x\n", first_run);
+  // volatile int *msg_status = (int *)0x80097900;
+  volatile int *block_virtio = (int *)0x80097950;
+
   if (!first_run) {
     alt_puts("VIRTIO SHARING VIRT QUEUE WITH MONITOR");
+    // *msg_status = 1;
     struct disk *disk_ptr;
     disk_ptr = (struct disk *)0x80098000;
     *disk_ptr = disk;
@@ -345,22 +349,8 @@ virtio_disk_rw(struct buf *b, int write)
   s3k_reply_t reply;
   s3k_err_t err;
 
-  if (REVOKE_DRIVER_MEM_POPULATED_QUEUE) {
-    if (first_run > 2) {
-      alt_puts("REVOKE POPULATED QUEUE");
-      if (USE_SENDRECV) {
-        s3k_reg_write(S3K_REG_SERVTIME, 4500);
-        do {
-          reply = s3k_sock_sendrecv(14, &msg);
-          // alt_printf("ERR %x %x %x\n", reply.err, S3K_ERR_NO_RECEIVER, S3K_ERR_TIMEOUT);
-        } while (reply.err != 0);
-      } else {
-        s3k_reg_write(S3K_REG_SERVTIME, 4500);
-      do {
-        err = s3k_sock_send(14, &msg);
-      } while (err != 0);
-      }
-    }
+  if (ENABLE_VIRTIO_QUEUE) {
+    while (*block_virtio) {}
   }
 
   __sync_synchronize();

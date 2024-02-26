@@ -436,22 +436,18 @@ s3k_err_t s3k_cap_delete(s3k_cidx_t idx)
 	} while (err == S3K_ERR_PREEMPTED);
 	return err;
 }
-#define TAG_BLOCK_TO_ADDR(tag, block) ( \
-					(((uint64_t) tag) << S3K_MAX_BLOCK_SIZE) + \
-					(((uint64_t) block) << S3K_MIN_BLOCK_SIZE) \
-					)
+
+#define MONITOR_PID 2
 
 s3k_err_t s3k_cap_revoke(s3k_cidx_t idx)
 {
-	alt_printf("S3K: REVOKE cap index %x\n", idx);
+	s3k_pid_t pid = s3k_get_pid();
 
-	s3k_msg_t msg;
-	msg.data[0] = s3k_get_pid();
-	msg.data[1] = 94;
-	msg.data[2] = 94;
-	msg.data[3] = idx;
-	s3k_cap_t cap;
-	s3k_reply_t reply;
+	if (pid == MONITOR_PID) {
+		alt_puts("S3K - user space: MONITOR trying to revoke cap");
+	} else {
+		alt_printf("S3K - user space: PID %x trying to revoke cap %x\n", pid, idx);
+	}
 
 	s3k_err_t err;
 	do {
